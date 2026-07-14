@@ -1,6 +1,6 @@
 # 🎓 ExamTopics Practice
 
-Site local pour s'entraîner aux certifications IT à partir des questions téléchargées via [examtopics-downloader](https://github.com/thatonecodes/examtopics-downloader).
+Site local pour s'entraîner aux certifications IT 
 
 ## Installation
 
@@ -9,7 +9,7 @@ Site local pour s'entraîner aux certifications IT à partir des questions tél�
 Ouvrez **Terminal** (Spotlight → tapez « Terminal ») et collez cette commande :
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Max-cfn/Examtopics/main/installer/install-mac.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Max-cfn/Quizzs/main/installer/install-mac.sh)"
 ```
 
 Elle installe tout (Homebrew, Node.js, Git), télécharge l'app, la lance, et crée
