@@ -1,5 +1,5 @@
 /**
- * ExamTopics Practice - Main Application
+ * Quizzs - Main Application
  */
 (function () {
     'use strict';
@@ -44,7 +44,7 @@
                     <div class="empty-library">
                         <div class="empty-icon">📭</div>
                         <p>Aucune certification téléchargée</p>
-                        <p style="font-size:0.85rem;margin-top:0.5rem">Importez un fichier .md ou téléchargez depuis ExamTopics</p>
+                        <p style="font-size:0.85rem;margin-top:0.5rem">Importez un fichier .md ou téléchargez un jeu de questions</p>
                     </div>`;
                 return;
             }
@@ -117,7 +117,7 @@
         try {
             const res = await fetch(`/api/exams/${filename}`);
             const data = await res.json();
-            allQuestions = parseExamTopicsMarkdown(data.content);
+            allQuestions = parseQuestionsMarkdown(data.content);
             
             if (allQuestions.length === 0) {
                 alert('Aucune question trouvée dans ce fichier.');
@@ -141,7 +141,7 @@
         if (!file) return;
         
         const content = await file.text();
-        const questions = parseExamTopicsMarkdown(content);
+        const questions = parseQuestionsMarkdown(content);
         
         if (questions.length === 0) {
             alert('Aucune question trouvée dans ce fichier. Vérifiez le format.');
@@ -255,7 +255,7 @@
             const res = await fetch(`/api/providers/${provider}/exams/${slug}/info`);
             const data = await res.json();
             
-            let html = `<a href="${data.url}" target="_blank">🔗 Voir sur ExamTopics</a>`;
+            let html = `<a href="${data.url}" target="_blank">🔗 Voir la source</a>`;
             if (data.lastUpdated) {
                 html += ` &nbsp;|&nbsp; 📅 Dernière mise à jour : <strong>${data.lastUpdated}</strong>`;
             }
@@ -887,7 +887,7 @@
             }
             html += `</div>`;
         } else if (!isCorrect && !q.correctAnswer) {
-            html += `<div class="feedback-explanation">⚠️ Pas de réponse officielle disponible pour cette question. Consultez la discussion sur ExamTopics.</div>`;
+            html += `<div class="feedback-explanation">⚠️ Pas de réponse officielle disponible pour cette question. Consultez la source.</div>`;
         }
         
         // Show discussions
@@ -907,7 +907,7 @@
         }
         
         if (q.link) {
-            html += `<div style="margin-top:0.75rem"><a href="${q.link}" target="_blank" style="color:var(--primary)">🔗 Voir la discussion complète sur ExamTopics →</a></div>`;
+            html += `<div style="margin-top:0.75rem"><a href="${q.link}" target="_blank" style="color:var(--primary)">🔗 Voir la discussion complète →</a></div>`;
         }
         feedback.innerHTML = html;
 
@@ -946,7 +946,7 @@
             html += `<button class="flag-btn ${isFlagged ? 'flagged' : ''}" id="flagBtn" title="Marquer cette question">${isFlagged ? '🚩 Marquée' : '🏳️ Marquer'}</button>`;
         }
         if (question.link) {
-            html += `<span class="question-link"><a href="${question.link}" target="_blank">🔗 Voir sur ExamTopics</a></span>`;
+            html += `<span class="question-link"><a href="${question.link}" target="_blank">🔗 Voir la source</a></span>`;
         }
         html += `</span></div>`;
         if (isMulti) {
@@ -954,7 +954,7 @@
         }
         // Show confidence indicator if answer comes from community with low votes
         if (!showCorrect && question.answerConfidence === 1) {
-            html += `<div class="answer-confidence-hint">💬 Réponse basée sur peu de votes — consultez ExamTopics pour confirmation</div>`;
+            html += `<div class="answer-confidence-hint">💬 Réponse basée sur peu de votes — vérifiez la source pour confirmation</div>`;
         } else if (!showCorrect && question.answerConfidence === 0) {
             html += `<div class="answer-confidence-hint">❓ Aucune réponse disponible</div>`;
         }
@@ -1175,7 +1175,7 @@
 
             // Low-confidence warning
             if (d.answerConfidence === 1) {
-                html += `<div class="answer-confidence-hint">💬 Réponse basée sur peu de votes — vérifiez sur ExamTopics</div>`;
+                html += `<div class="answer-confidence-hint">💬 Réponse basée sur peu de votes — vérifiez la source</div>`;
             } else if (d.answerConfidence === 0) {
                 html += `<div class="answer-confidence-hint">❓ Aucune réponse fiable disponible</div>`;
             }
@@ -1196,7 +1196,7 @@
             }
             html += `</div>`;
             if (d.explanation) html += `<div class="result-explanation">${escapeHTML(d.explanation)}</div>`;
-            if (d.link) html += `<div class="result-link"><a href="${d.link}" target="_blank">🔗 ExamTopics</a></div>`;
+            if (d.link) html += `<div class="result-link"><a href="${d.link}" target="_blank">🔗 Voir la source</a></div>`;
             html += `</div>`;
         }
         document.getElementById('historyResultsList').innerHTML = html || '<p style="color:var(--text-muted);text-align:center;">Aucune.</p>';
@@ -1281,7 +1281,7 @@
 
             // Low-confidence warning
             if (q.answerConfidence === 1) {
-                html += `<div class="answer-confidence-hint">💬 Réponse basée sur peu de votes — vérifiez sur ExamTopics</div>`;
+                html += `<div class="answer-confidence-hint">💬 Réponse basée sur peu de votes — vérifiez la source</div>`;
             } else if (q.answerConfidence === 0) {
                 html += `<div class="answer-confidence-hint">❓ Aucune réponse fiable disponible</div>`;
             }
@@ -1305,7 +1305,7 @@
             html += `</div>`;
 
             if (q.explanation) html += `<div class="result-explanation">${escapeHTML(q.explanation.substring(0, 500))}${q.explanation.length > 500 ? '...' : ''}</div>`;
-            if (q.link) html += `<div class="result-link"><a href="${q.link}" target="_blank">🔗 Voir la discussion sur ExamTopics</a></div>`;
+            if (q.link) html += `<div class="result-link"><a href="${q.link}" target="_blank">🔗 Voir la source</a></div>`;
             html += `</div>`;
         });
 

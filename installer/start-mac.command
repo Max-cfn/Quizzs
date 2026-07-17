@@ -1,8 +1,8 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════
-#  ExamTopics Practice - macOS - Double-clic pour lancer
+#  Quizzs - macOS - Double-clic pour lancer
 # ═══════════════════════════════════════════════════════
-REPO_URL="https://github.com/Max-cfn/Examtopics.git"
+REPO_URL="https://github.com/Max-cfn/Quizzs.git"
 
 # Déterminer le répertoire du script et remonter au repo
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -14,8 +14,8 @@ else
 fi
 
 echo ""
-echo "  🎓 ExamTopics Practice"
-echo "  ═══════════════════════"
+echo "  🎓 Quizzs"
+echo "  ═══════════"
 echo ""
 
 # 1. Homebrew (ARM ou Intel Mac)
@@ -85,12 +85,12 @@ if command -v docker &> /dev/null; then
         fi
     fi
 else
-    echo "  💡 Docker non installé (optionnel, pour télécharger des exams)"
+    echo "  💡 Docker non installé (optionnel, pour télécharger des questions)"
     echo ""
 fi
 
 # 7. Créer raccourci Bureau si absent
-DESKTOP_SHORTCUT="$HOME/Desktop/ExamTopics Practice.command"
+DESKTOP_SHORTCUT="$HOME/Desktop/Quizzs.command"
 if [ ! -f "$DESKTOP_SHORTCUT" ]; then
     echo "  🖥️  Création du raccourci sur le Bureau..."
     cat > "$DESKTOP_SHORTCUT" << SHORTCUT

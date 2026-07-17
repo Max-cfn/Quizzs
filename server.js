@@ -441,7 +441,7 @@ app.get('/api/download/status', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-    console.log(`\n  🎓 ExamTopics Practice`);
+    console.log(`\n  🎓 Quizzs`);
     console.log(`  ─────────────────────`);
     console.log(`  → http://localhost:${PORT}\n`);
     console.log(`  Exams stockés dans: ${EXAMS_DIR}`);

@@ -1,6 +1,6 @@
-# 🎓 ExamTopics Practice
+# 🎓 Quizzs
 
-Site local pour s'entraîner aux certifications IT 
+Application locale pour s'entraîner à des QCM en conditions d'examen ou en mode révision.
 
 ## Installation
 
@@ -13,7 +13,7 @@ Ouvrez **Terminal** (Spotlight → tapez « Terminal ») et collez cette command
 ```
 
 Elle installe tout (Homebrew, Node.js, Git), télécharge l'app, la lance, et crée
-un raccourci **« ExamTopics Practice »** sur le Bureau. **Les fois suivantes :
+un raccourci **« Quizzs »** sur le Bureau. **Les fois suivantes :
 double-clic sur le raccourci du Bureau** (2 clics, sans alerte).
 
 > **Pourquoi pas un simple double-clic au départ ?** macOS (Gatekeeper) bloque
@@ -29,55 +29,57 @@ Il installe Node.js (via winget) et les dépendances au premier lancement.
 ### 🐧 Linux
 
 ```bash
-git clone https://github.com/Max-cfn/Examtopics.git ~/Examtopics
-cd ~/Examtopics && ./installer/start-linux.sh
+git clone https://github.com/Max-cfn/Quizzs.git ~/Quizzs
+cd ~/Quizzs && ./installer/start-linux.sh
 ```
 
 Le site s'ouvre sur **http://localhost:3000**.
 
 ## Fonctionnalités
 
-- **Bibliothèque de certifications** classée par provider (AWS, Cisco, Google, etc.)
-- **Mode Examen** : timer, batch de X questions, résultats détaillés à la fin
-- **Mode Entraînement** : feedback immédiat avec discussions de la communauté
+- **Bibliothèque** classée par catégorie
+- **Mode Examen** : timer configurable, batch de X questions, pause, résultats détaillés à la fin
+- **Mode Entraînement** : feedback immédiat avec explications
+- **Quizz préfaits** : les questions sont découpées en lots de 50
 - **Sélection par plage** : toutes, les X dernières, les X premières, ou plage personnalisée
 - **Multi-réponses** : support des questions à choix multiples (2-3 réponses attendues)
-- **Discussions ExamTopics** : réponses et explications de la communauté intégrées
-- **Lien direct** vers chaque question sur ExamTopics
-- **Téléchargement intégré** via Docker depuis l'interface
+- **Flag de questions** : marquez des questions pendant un quiz pour les revoir ensuite
+- **Historique** : réponses détaillées de chaque session, avec review
 - **Raccourcis clavier** : A-F pour sélectionner, ←→ pour naviguer, Enter pour valider
 
 ## Ajouter des questions
 
 ### Depuis l'interface
-- Cliquez "Importer un fichier .md" pour charger un fichier existant
-- Cliquez "Télécharger depuis ExamTopics" pour scraper via Docker (nécessite Docker)
+Cliquez **« Importer un fichier .md »** pour charger un fichier de questions.
 
 ### Manuellement
 Placez vos fichiers `.md` dans le dossier `exams/`. Ils apparaîtront au prochain lancement.
 
-### Via Docker en ligne de commande
-```bash
-docker run --name examtopics-dl \
-  ghcr.io/thatonecodes/examtopics-downloader:latest \
-  -p amazon -s "aws-certified-solutions-architect-professional-sap-c02" \
-  -c -save-links -o output.md
-docker cp examtopics-dl:/app/output.md ./exams/aws-sap-c02.md
-docker rm examtopics-dl
+## Format des fichiers de questions
+
+Chaque question suit ce format markdown, séparée par une ligne `----` :
+
+```
+## Sujet 1 question 1
+
+Intitulé de la question ?
+
+A. Première option
+B. Deuxième option
+C. Troisième option
+D. Quatrième option
+
+**Answer: C**
 ```
 
-> Le flag `-c` est important : il inclut les discussions de la communauté (réponses, explications, votes).
-
-## Providers disponibles
-
-amazon, cisco, comptia, google, microsoft, isc2, fortinet, juniper, isaca, vmware, servicenow, ec-council, oracle, paloaltonetworks
-
-[Liste complète des exams](https://github.com/thatonecodes/examtopics-downloader#exam-providers--p)
+Les questions à choix multiples se déclarent avec `(Choose two.)` dans l'intitulé
+et une réponse combinée (`**Answer: AC**`).
 
 ## Structure
 
 ```
 ├── installer/              # Scripts de lancement (double-clic)
+│   ├── install-mac.sh
 │   ├── start-mac.command
 │   ├── start-windows.bat
 │   ├── start-linux.sh

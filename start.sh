@@ -1,5 +1,5 @@
 #!/bin/bash
-# ExamTopics Practice - Lancement en 1 clic
+# Quizzs - Lancement en 1 clic
 # Fonctionne depuis n'importe quel emplacement
 cd "$(dirname "$0")"
 APP_DIR="$(pwd)"
@@ -12,8 +12,8 @@ elif [ -f /usr/local/bin/brew ]; then
 fi
 
 echo ""
-echo "  🎓 ExamTopics Practice"
-echo "  ═══════════════════════"
+echo "  🎓 Quizzs"
+echo "  ═══════════"
 echo ""
 
 # Vérifier Node.js

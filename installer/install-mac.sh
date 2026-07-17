@@ -1,9 +1,9 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-#  ExamTopics Practice — Installeur macOS (1 ligne, sans Gatekeeper)
+#  Quizzs — Installeur macOS (1 ligne, sans Gatekeeper)
 #
 #  À coller dans le Terminal :
-#    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Max-cfn/Examtopics/main/installer/install-mac.sh)"
+#    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Max-cfn/Quizzs/main/installer/install-mac.sh)"
 #
 #  Pourquoi ça évite l'alerte "logiciel non vérifié" :
 #  curl et git clone ne posent PAS l'attribut com.apple.quarantine,
@@ -12,12 +12,12 @@
 # ═══════════════════════════════════════════════════════════════
 set -e
 
-REPO_URL="https://github.com/Max-cfn/Examtopics.git"
-APP_DIR="$HOME/Documents/Examtopics"
+REPO_URL="https://github.com/Max-cfn/Quizzs.git"
+APP_DIR="$HOME/Documents/Quizzs"
 
 echo ""
-echo "  🎓 ExamTopics Practice — Installation"
-echo "  ═════════════════════════════════════"
+echo "  🎓 Quizzs — Installation"
+echo "  ═════════════════════════"
 echo ""
 
 # 1. Homebrew (ARM ou Intel) — nécessaire pour installer git si absent

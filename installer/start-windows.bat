@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 >nul
-title ExamTopics Practice
+title Quizzs
 setlocal enabledelayedexpansion
 
-set REPO_URL=https://github.com/Max-cfn/Examtopics.git
+set REPO_URL=https://github.com/Max-cfn/Quizzs.git
 
 :: Determine app directory (parent of installer/)
 set "SCRIPT_DIR=%~dp0"
@@ -20,7 +20,7 @@ if /i "%FOLDER_NAME%"=="installer" (
 
 echo.
 echo   ========================================
-echo     ExamTopics Practice - Windows
+echo     Quizzs - Windows
 echo   ========================================
 echo.
 
@@ -91,12 +91,12 @@ if %errorlevel% equ 0 (
 )
 
 :: 6. Create Desktop shortcut if absent
-if not exist "%USERPROFILE%\Desktop\ExamTopics Practice.bat" (
+if not exist "%USERPROFILE%\Desktop\Quizzs.bat" (
     echo   [..] Creation du raccourci Bureau...
     (
         echo @echo off
         echo start "" "%APP_DIR%\installer\start-windows.bat"
-    ) > "%USERPROFILE%\Desktop\ExamTopics Practice.bat"
+    ) > "%USERPROFILE%\Desktop\Quizzs.bat"
 )
 
 :: 7. Kill existing process on port 3000

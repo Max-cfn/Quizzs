@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
-    <title>ExamTopics Practice</title>
+    <title>Quizzs</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,13 +12,13 @@
         <!-- Home: Exam Library -->
         <section id="homeScreen" class="screen active">
             <div class="home-header">
-                <h1>🎓 ExamTopics Practice</h1>
+                <h1>🎓 Quizzs</h1>
                 <p class="subtitle">Sélectionnez une certification ou importez-en une nouvelle</p>
             </div>
 
             <div class="library-actions">
                 <button class="btn btn-primary" id="btnImport">📥 Importer un fichier .md</button>
-                <button class="btn btn-secondary" id="btnDownload">⬇️ Télécharger depuis ExamTopics</button>
+                <button class="btn btn-secondary" id="btnDownload">⬇️ Télécharger des questions</button>
                 <input type="file" id="fileInput" accept=".md,.txt" hidden>
             </div>
 
@@ -41,24 +41,24 @@
         <div id="downloadModal" class="modal hidden">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>⬇️ Télécharger un examen</h2>
+                    <h2>⬇️ Télécharger des questions</h2>
                     <button class="modal-close" id="closeDownloadModal">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p class="modal-info">Utilise <a href="https://github.com/thatonecodes/examtopics-downloader" target="_blank">examtopics-downloader</a> via Docker pour télécharger les questions.</p>
+                    <p class="modal-info">Télécharge un jeu de questions via Docker.</p>
                     
                     <div class="dl-steps">
                         <div class="dl-step">
                             <span class="dl-step-num">1</span>
-                            <label>Choisissez le provider :
+                            <label>Choisissez la catégorie :
                                 <select id="dlProvider"></select>
                             </label>
                         </div>
                         <div class="dl-step">
                             <span class="dl-step-num">2</span>
-                            <label>Choisissez l'examen :
-                                <select id="dlExamSelect"><option value="">— Sélectionnez un provider d'abord —</option></select>
-                                <span class="dl-hint" id="dlExamHint">💡 Sélectionnez un provider pour charger la liste des exams disponibles</span>
+                            <label>Choisissez le jeu de questions :
+                                <select id="dlExamSelect"><option value="">— Sélectionnez une catégorie d'abord —</option></select>
+                                <span class="dl-hint" id="dlExamHint">💡 Sélectionnez une catégorie pour charger la liste disponible</span>
                             </label>
                         </div>
                         <div id="dlExamInfo" class="dl-exam-info hidden">

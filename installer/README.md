@@ -7,12 +7,12 @@ Scripts de lancement en 1 clic. Double-cliquez sur celui de votre OS.
 Ouvrez **Terminal** et collez :
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Max-cfn/Examtopics/main/installer/install-mac.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Max-cfn/Quizzs/main/installer/install-mac.sh)"
 ```
 
 `install-mac.sh` installe Homebrew + Node.js + Git, fait un `git clone` du dépôt
-dans `~/Documents/Examtopics`, puis lance `start-mac.command`. Un raccourci
-**« ExamTopics Practice »** est créé sur le Bureau.
+dans `~/Documents/Quizzs`, puis lance `start-mac.command`. Un raccourci
+**« Quizzs »** est créé sur le Bureau.
 
 **Les fois suivantes : double-clic sur le raccourci du Bureau** (2 clics, sans alerte).
 
@@ -29,6 +29,7 @@ dans `~/Documents/Examtopics`, puis lance `start-mac.command`. Un raccourci
 
 Double-cliquez. Au premier lancement il installe :
 - Node.js via winget (si absent)
+- Git via winget (si absent)
 - Dépendances npm
 
 **Prérequis** : Windows 10/11 avec winget (inclus par défaut). Si winget n'est pas disponible, installez Node.js depuis https://nodejs.org puis relancez le script.
@@ -44,7 +45,7 @@ Installe Node.js via apt (Debian/Ubuntu), dnf (Fedora), ou pacman (Arch).
 
 ## Docker (optionnel)
 
-Docker est nécessaire uniquement pour télécharger des exams depuis l'interface web. Sans Docker, importez vos fichiers `.md` manuellement.
+Docker n'est nécessaire que pour la fonction de téléchargement intégrée. Sans Docker, importez vos fichiers `.md` manuellement.
 
 | OS | Installation Docker |
 |----|-------------------|

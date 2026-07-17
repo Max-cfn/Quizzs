@@ -1,8 +1,8 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════
-#  ExamTopics Practice - Linux
+#  Quizzs - Linux
 # ═══════════════════════════════════════════════════════
-REPO_URL="https://github.com/Max-cfn/Examtopics.git"
+REPO_URL="https://github.com/Max-cfn/Quizzs.git"
 
 # Déterminer le répertoire
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -13,8 +13,8 @@ else
 fi
 
 echo ""
-echo "  🎓 ExamTopics Practice"
-echo "  ═══════════════════════"
+echo "  🎓 Quizzs"
+echo "  ═══════════"
 echo ""
 
 # 1. Node.js
@@ -75,18 +75,18 @@ fi
 
 # 6. Créer raccourci Bureau
 DESKTOP="${XDG_DESKTOP_DIR:-$HOME/Desktop}"
-if [ -d "$DESKTOP" ] && [ ! -f "$DESKTOP/ExamTopics Practice.desktop" ]; then
+if [ -d "$DESKTOP" ] && [ ! -f "$DESKTOP/Quizzs.desktop" ]; then
     echo "  🖥️  Création du raccourci Bureau..."
-    cat > "$DESKTOP/ExamTopics Practice.desktop" << EOF
+    cat > "$DESKTOP/Quizzs.desktop" << EOF
 [Desktop Entry]
 Type=Application
-Name=ExamTopics Practice
+Name=Quizzs
 Exec=bash -c "$APP_DIR/installer/start-linux.sh"
 Terminal=true
 Icon=applications-education
 Categories=Education;
 EOF
-    chmod +x "$DESKTOP/ExamTopics Practice.desktop"
+    chmod +x "$DESKTOP/Quizzs.desktop"
 fi
 
 # 7. Port 3000

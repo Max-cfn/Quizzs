@@ -16,7 +16,7 @@
  *   Comments: [user] Selected Answer: C ...
  */
 
-function parseExamTopicsMarkdown(content) {
+function parseQuestionsMarkdown(content) {
     const questions = [];
     const blocks = content.split(/^-{3,}$/m).filter(b => b.trim());
     for (const block of blocks) {
