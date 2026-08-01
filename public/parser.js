@@ -153,6 +153,11 @@ function parseQuestionBlock(block) {
     if (tsMatch) timestamp = tsMatch[1].trim();
 
     // ─── Discussions / comments ───────────────────────────────────────
+    // Chaque commentaire ExamTopics suit toujours le même gabarit texte :
+    //   USER [Highly Voted|Most Recent] TIME_AGO [Selected Answer: X] TEXT upvoted N times
+    // séparés par "...". On les capture dans l'ordre d'apparition du fichier
+    // (le plus récent en premier, tel que fourni par ExamTopics) sans tronquer
+    // le texte, pour permettre un affichage complet de la conversation.
     let discussions = [];
     let explanation = '';
 
@@ -160,38 +165,45 @@ function parseQuestionBlock(block) {
     if (commentsMatch) {
         const txt = commentsMatch[1];
 
-        // New format: "[user] Selected Answer: C explanation text [user2] ..."
-        const newComments = [...txt.matchAll(/\[([^\]]+)\]\s*(?:Selected Answer:\s*([A-F]+))?\s*([^\[]*)/g)];
-        for (const c of newComments) {
-            const user = c[1];
-            const sel = c[2] ? c[2].toUpperCase() : '';
-            const body = (c[3] || '').trim();
-            if (body.length > 10 || sel) {
-                discussions.push({
-                    user,
-                    selectedAnswer: sel,
-                    text: (sel ? `Réponse ${sel}. ` : '') + body.substring(0, 600)
-                });
-            }
+        const commentRegex = /(\w+)\s+(Highly Voted|Most Recent)?\s*(\d+\s+\w+(?:,\s*\d+\s+\w+)?\s+ago)\s*(?:Selected Answer:\s*([A-F]+))?\s*([\s\S]*?)upvoted\s+(\d+)\s+times/gi;
+        let m;
+        while ((m = commentRegex.exec(txt)) !== null) {
+            discussions.push({
+                user: m[1],
+                badge: m[2] || '',                 // "Highly Voted" | "Most Recent" | ''
+                time: m[3].trim(),
+                selectedAnswer: m[4] ? m[4].toUpperCase() : '',
+                text: m[5].trim(),                 // texte complet, non tronqué
+                votes: parseInt(m[6])
+            });
         }
 
-        // Legacy format: "user Highly Voted ... Selected Answer: C ... upvoted N times"
+        // Repli : format "[user] Selected Answer: C texte" (jamais vu dans les
+        // fichiers réels observés, mais gardé au cas où le downloader change).
         if (discussions.length === 0) {
-            const saRegex = /(\w+)\s+(?:Highly Voted|Most Recent)?\s*([\d]+\s+\w+(?:,\s*\d+\s+\w+)?\s+ago)\s*(?:Selected Answer:\s*([A-F]+))?\s*([\s\S]*?)upvoted\s+(\d+)\s+times/gi;
-            let m;
-            while ((m = saRegex.exec(txt)) !== null) {
-                discussions.push({
-                    user: m[1],
-                    time: m[2].trim(),
-                    selectedAnswer: m[3] ? m[3].toUpperCase() : '',
-                    text: `${m[3] ? 'Réponse ' + m[3] + '. ' : ''}${m[4].trim()}`.substring(0, 600),
-                    votes: parseInt(m[5])
-                });
+            const newComments = [...txt.matchAll(/\[([^\]]+)\]\s*(?:Selected Answer:\s*([A-F]+))?\s*([^\[]*)/g)];
+            for (const c of newComments) {
+                const body = (c[3] || '').trim();
+                if (body.length > 10 || c[2]) {
+                    discussions.push({
+                        user: c[1],
+                        badge: '',
+                        time: '',
+                        selectedAnswer: c[2] ? c[2].toUpperCase() : '',
+                        text: body,
+                        votes: 0
+                    });
+                }
             }
-            discussions.sort((a, b) => (b.votes || 0) - (a.votes || 0));
         }
 
-        if (discussions.length > 0) explanation = discussions[0].text;
+        // L'explication par défaut (affichée sans dérouler la conversation)
+        // est le commentaire "Highly Voted" s'il existe, sinon le plus voté.
+        if (discussions.length > 0) {
+            const highly = discussions.find(d => d.badge === 'Highly Voted');
+            const best = highly || [...discussions].sort((a, b) => (b.votes || 0) - (a.votes || 0))[0];
+            explanation = best.text;
+        }
     }
 
     const topicNum = topicNumMatch ? topicNumMatch[1] : '1';

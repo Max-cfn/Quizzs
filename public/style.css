@@ -1078,15 +1078,71 @@ a:hover {
     font-size: 0.85rem;
 }
 
+/* Bouton pour dérouler/replier la conversation complète */
+.discussion-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+    padding: 0.4rem 0.7rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--primary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.discussion-toggle:hover {
+    background: var(--bg-hover);
+}
+.discussion-toggle .dt-arrow {
+    display: inline-block;
+    transition: transform 0.15s;
+}
+.discussion-toggle.open .dt-arrow {
+    transform: rotate(90deg);
+}
+
+/* Fil de discussion complet */
+.discussion-thread {
+    margin-top: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+.discussion-thread.hidden {
+    display: none;
+}
+
 .discussion-entry {
-    margin-top: 0.5rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.6rem 0.8rem;
     background: var(--bg);
     border-radius: 6px;
-    border-left: 3px solid var(--primary);
+    border-left: 3px solid var(--border);
+}
+.discussion-entry-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
 }
 .discussion-entry p {
     margin-top: 0.25rem;
+}
+.discussion-entry .discussion-text {
+    color: var(--text-muted);
+    font-size: 0.87rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.discussion-entry .discussion-text a {
+    color: var(--primary);
+    text-decoration: underline;
 }
 .discussion-user {
     font-weight: 600;
@@ -1096,6 +1152,35 @@ a:hover {
 .discussion-time {
     font-size: 0.75rem;
     color: var(--text-muted);
+}
+.discussion-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 10px;
+}
+.discussion-badge.badge-hv {
+    background: rgba(250, 204, 21, 0.15);
+    color: #facc15;
+}
+.discussion-badge.badge-mr {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+}
+.discussion-answer {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--text);
+}
+.discussion-votes {
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Commentaire mis en avant : bord accentué */
+.discussion-entry:has(.badge-hv) {
+    border-left-color: #facc15;
 }
 
 /* Navigation */

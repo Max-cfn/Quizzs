@@ -890,32 +890,73 @@
             html += `<div class="feedback-explanation">⚠️ Pas de réponse officielle disponible pour cette question. Consultez la source.</div>`;
         }
         
-        // Show discussions
-        if (q.explanation) {
-            html += `<div class="feedback-discussion"><strong>💬 Discussion :</strong><p>${escapeHTML(q.explanation)}</p></div>`;
-        } else if (q.discussions && q.discussions.length > 0) {
-            html += `<div class="feedback-discussion"><strong>💬 Discussions :</strong>`;
-            for (const d of q.discussions.slice(0, 3)) {
-                html += `<div class="discussion-entry">`;
-                if (d.user) html += `<span class="discussion-user">${escapeHTML(d.user)}</span> `;
-                if (d.time) html += `<span class="discussion-time">${escapeHTML(d.time)}</span>`;
-                html += `<p>${escapeHTML(d.text)}</p></div>`;
-            }
-            html += `</div>`;
-        } else {
-            html += `<div class="feedback-discussion"><em>Pas de discussion disponible. Relancez le téléchargement avec les commentaires (-c) pour les obtenir.</em></div>`;
-        }
-        
-        if (q.link) {
-            html += `<div style="margin-top:0.75rem"><a href="${q.link}" target="_blank" style="color:var(--primary)">🔗 Voir la discussion complète →</a></div>`;
-        }
+        // Show discussion (best comment + dropdown avec la conversation complète)
+        html += buildDiscussionHTML(q);
         feedback.innerHTML = html;
+
+        bindDiscussionToggle(feedback);
 
         document.getElementById('trainCheck').classList.add('hidden');
         document.getElementById('trainNext').disabled = false;
         if (currentIndex >= currentQuestions.length - 1) {
             document.getElementById('trainNext').textContent = 'Voir les résultats';
         }
+    }
+
+    // Construit le bloc discussion : meilleur commentaire visible directement,
+    // puis un bouton dropdown qui déroule la conversation complète (tous les
+    // commentaires, structurés comme sur le site source : auteur, badge
+    // Highly Voted / Most Recent, ancienneté, réponse sélectionnée, texte avec
+    // liens cliquables, nombre d'upvotes).
+    function buildDiscussionHTML(q) {
+        const discussions = q.discussions || [];
+        let html = '<div class="feedback-discussion">';
+
+        if (q.explanation) {
+            html += `<strong>💬 Discussion la plus pertinente :</strong><p>${linkify(q.explanation)}</p>`;
+        } else if (discussions.length === 0) {
+            html += `<em>Aucune discussion disponible pour cette question.</em>`;
+        }
+
+        if (discussions.length > 0) {
+            const uid = `disc-${q.id}-${Math.random().toString(36).slice(2, 8)}`;
+            html += `<button class="discussion-toggle" data-target="${uid}">
+                <span class="dt-arrow">▸</span> Voir toute la conversation (${discussions.length} commentaire${discussions.length > 1 ? 's' : ''})
+            </button>`;
+            html += `<div class="discussion-thread hidden" id="${uid}">`;
+            for (const d of discussions) {
+                html += `<div class="discussion-entry">
+                    <div class="discussion-entry-header">
+                        <span class="discussion-user">${escapeHTML(d.user)}</span>
+                        ${d.badge ? `<span class="discussion-badge ${d.badge === 'Highly Voted' ? 'badge-hv' : 'badge-mr'}">${d.badge === 'Highly Voted' ? '⭐ Highly Voted' : '🕒 Most Recent'}</span>` : ''}
+                        ${d.time ? `<span class="discussion-time">${escapeHTML(d.time)}</span>` : ''}
+                    </div>
+                    ${d.selectedAnswer ? `<div class="discussion-answer">Réponse choisie : <strong>${escapeHTML(d.selectedAnswer)}</strong></div>` : ''}
+                    <p class="discussion-text">${linkify(d.text)}</p>
+                    ${d.votes ? `<div class="discussion-votes">👍 ${d.votes} upvote${d.votes > 1 ? 's' : ''}</div>` : ''}
+                </div>`;
+            }
+            html += `</div>`;
+        }
+
+        if (q.link) {
+            html += `<div style="margin-top:0.75rem"><a href="${q.link}" target="_blank" rel="noopener noreferrer" style="color:var(--primary)">🔗 Voir la page source →</a></div>`;
+        }
+        html += `</div>`;
+        return html;
+    }
+
+    // Active le bouton dropdown pour dérouler/replier la conversation complète
+    function bindDiscussionToggle(container) {
+        container.querySelectorAll('.discussion-toggle').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = document.getElementById(btn.dataset.target);
+                if (!target) return;
+                const isOpen = !target.classList.contains('hidden');
+                target.classList.toggle('hidden');
+                btn.classList.toggle('open', !isOpen);
+            });
+        });
     }
 
     document.getElementById('trainNext').addEventListener('click', () => {
@@ -1005,6 +1046,20 @@
         return div.innerHTML;
     }
 
+    // Échappe le texte puis transforme les URLs brutes en liens cliquables
+    // (nouvel onglet). Le texte est d'abord entièrement échappé pour éviter
+    // toute injection HTML, puis on ré-ouvre juste les balises <a> qu'on ajoute.
+    function linkify(str) {
+        const escaped = escapeHTML(str);
+        return escaped.replace(/((https?:\/\/[^\s<]+))/g, (url) => {
+            // Retire une ponctuation finale accidentellement collée à l'URL
+            const trailing = url.match(/[).,;:!?]+$/);
+            const clean = trailing ? url.slice(0, -trailing[0].length) : url;
+            const suffix = trailing ? trailing[0] : '';
+            return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>${suffix}`;
+        });
+    }
+
     // ─── History ───────────────────────────────────────────────────────────
     let currentQuizType = ''; // 'batch-3', 'custom', 'all', etc.
 
@@ -1037,7 +1092,14 @@
                 flagged: !!flaggedQuestions[i],
                 isCorrect: userLetters.length === correctLetters.length && userLetters.every(l => correctLetters.includes(l)),
                 link: q.link,
-                explanation: q.explanation ? q.explanation.substring(0, 300) : ''
+                explanation: q.explanation ? q.explanation.substring(0, 300) : '',
+                // Conversation complète (limitée à 10 commentaires, 400 car. chacun,
+                // pour rester raisonnable en taille dans le localStorage).
+                discussions: (q.discussions || []).slice(0, 10).map(d => ({
+                    user: d.user, badge: d.badge, time: d.time,
+                    selectedAnswer: d.selectedAnswer, votes: d.votes,
+                    text: d.text ? d.text.substring(0, 400) : ''
+                }))
             };
         });
 
@@ -1195,11 +1257,12 @@
                 </div>`;
             }
             html += `</div>`;
-            if (d.explanation) html += `<div class="result-explanation">${escapeHTML(d.explanation)}</div>`;
-            if (d.link) html += `<div class="result-link"><a href="${d.link}" target="_blank">🔗 Voir la source</a></div>`;
+            html += buildDiscussionHTML({ explanation: d.explanation, discussions: d.discussions, link: d.link, id: `hist${d.number}${d.position}` });
             html += `</div>`;
         }
-        document.getElementById('historyResultsList').innerHTML = html || '<p style="color:var(--text-muted);text-align:center;">Aucune.</p>';
+        const historyListEl = document.getElementById('historyResultsList');
+        historyListEl.innerHTML = html || '<p style="color:var(--text-muted);text-align:center;">Aucune.</p>';
+        bindDiscussionToggle(historyListEl);
     }
 
     // ─── Results ─────────────────────────────────────────────────────────
@@ -1304,12 +1367,12 @@
             }
             html += `</div>`;
 
-            if (q.explanation) html += `<div class="result-explanation">${escapeHTML(q.explanation.substring(0, 500))}${q.explanation.length > 500 ? '...' : ''}</div>`;
-            if (q.link) html += `<div class="result-link"><a href="${q.link}" target="_blank">🔗 Voir la source</a></div>`;
+            html += buildDiscussionHTML(q);
             html += `</div>`;
         });
 
         list.innerHTML = html || '<p style="color:var(--text-muted);text-align:center;">Aucune question dans cette catégorie.</p>';
+        bindDiscussionToggle(list);
     }
 
     function getChoiceText(question, letter) {
