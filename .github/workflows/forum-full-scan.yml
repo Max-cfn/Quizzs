@@ -1,0 +1,27 @@
+name: Verify full forum downloads
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/validated-exam-downloads]
+    paths: [.github/workflows/forum-full-scan.yml]
+permissions:
+  contents: read
+concurrency: quizzs-examtopics-forum
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t quizzs-forum-downloader:local downloader
+      - name: Verify CloudOps and AIP-C01 with one serial request queue
+        run: |
+          state="$(mktemp -d)"
+          for exam in aws-certified-cloudops-engineer-associate-soa-c03 aws-certified-generative-ai-developer-professional-aip-c01; do
+            log="$RUNNER_TEMP/$exam.log"
+            code=0
+            docker run --rm -v "$state:/state" quizzs-forum-downloader:local \
+              -p amazon -s "$exam" -o "/state/$exam.md" 2>&1 | tee "$log" || code=$?
+            printf 'Exam: %s · HTTP 429: %s · Exit: %s\n' "$exam" "$(grep -c '^HTTP 429' "$log" || true)" "$code"
+            if [ "$code" -ne 0 ]; then exit "$code"; fi
+          done
