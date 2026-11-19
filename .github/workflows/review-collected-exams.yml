@@ -7,7 +7,9 @@ on:
 permissions:
   actions: read
   contents: write
-concurrency: quizzs-reviewed-exams
+concurrency:
+  group: quizzs-reviewed-exams
+  cancel-in-progress: true
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -19,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Wait for collection and review complete results
+      - name: Wait for collection and evaluate all complete results
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
