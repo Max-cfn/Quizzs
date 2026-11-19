@@ -283,6 +283,7 @@ app.post('/api/download',(req,res)=>{
         try {
             const count = await downloadForum(EXAMS_DIR, provider, search, job);
             job.result = count + ' questions enregistrées';
+            if (job.missingAnswers) job.result += ' · ' + job.missingAnswers + ' sans corrigé disponible';
         } catch (err) {
             job.result = job.stepLabel + ' · ' + err.message;
         } finally {

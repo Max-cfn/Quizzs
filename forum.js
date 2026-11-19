@@ -59,7 +59,9 @@ async function downloadForum(examsDir, provider, slug, job) {
         await runDownloader(args, job);
         const markdown = await fs.readFile(temporaryFile, 'utf8');
         const expected = Number(job.stepLabel.match(/^Complete: (\d+) questions$/)?.[1]);
-        const count = parseQuestionsMarkdown(markdown).length;
+        const questions = parseQuestionsMarkdown(markdown);
+        const count = questions.length;
+        job.missingAnswers = questions.filter(question => !question.correctAnswer).length;
         if (count === 0 || count !== expected) throw new Error('Le Markdown ne contient pas toutes les questions attendues.');
         const previous = await fs.readFile(destination, 'utf8').catch(err => {
             if (err.code === 'ENOENT') return '';

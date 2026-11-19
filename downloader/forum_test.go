@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 type forumTransport func(*http.Request) (*http.Response, error)
@@ -119,6 +121,26 @@ func TestCanonicalForumPage(t *testing.T) {
 	for _, redirect := range []string{"/login/", "https://example.org/discussions/amazon/2/"} {
 		if got := canonicalPageURL(base, redirect); got != "" {
 			t.Fatalf("followed unrelated redirect: %q", got)
+		}
+	}
+}
+
+func TestTextOnlyDiscussionChoices(t *testing.T) {
+	for _, tc := range []struct{ footer, answer string }{
+		{"Suggested Answer: B, D", "BD"},
+		{"Suggested Answer", ""},
+	} {
+		html := "<h1>Exam sample topic 1 question 3 discussion</h1>" +
+			"<p class='card-text'>Question text?<br><br>A. First<br>B. Second<br>still second<br>C. Third<br>D. Fourth<br><br>" +
+			tc.footer + "</p>"
+		doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+		if err != nil {
+			t.Fatal(err)
+		}
+		item := parseForumQuestion(doc, "")
+		want := []string{"A. First", "B. Second still second", "C. Third", "D. Fourth"}
+		if !reflect.DeepEqual(item.Questions, want) || item.Content != "Question text?" || item.Answer != tc.answer {
+			t.Fatalf("unexpected text-only parsing: %+v", item)
 		}
 	}
 }

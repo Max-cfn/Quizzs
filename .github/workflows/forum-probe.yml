@@ -49,9 +49,10 @@ jobs:
               link:=examTopicsOrigin+path
               doc,err:=h.page(link)
               if err!=nil { t.Fatal(err) }
-              item:=parseDiscussion(doc,link)
+              item:=parseForumQuestion(doc,link)
               body:=strings.ToLower(strings.Join(strings.Fields(doc.Find("body").Text())," "))
               fmt.Printf("probe %s · choices=%d · body=%t · answer=%t · question ID=%t · marker=%q · notice=%q\n", path, len(item.Questions), item.Content!="",item.Answer!="",questionID(*item)!="",accessNotice.FindString(body), doc.Find("title").Text())
+              if len(item.Questions) < 2 { t.Errorf("could not recover multiple-choice options for %s", path) }
               fmt.Printf("choice elements=%d · choice containers=%d · answer tallies=%d · question text bytes=%d\\n", doc.Find(".multi-choice-item").Length(), doc.Find(".question-choices-container, .choice-list").Length(), doc.Find(".voted-answers-tally, .question-answer").Length(), len(item.Content))
               fields:=[]struct{name,expr string}{
                 {"question option markers", `(?i)(?:^|\s)([A-H])\s*[.:\)]\s+`},

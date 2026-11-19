@@ -27,7 +27,9 @@ var examSlug = regexp.MustCompile(`^[a-z0-9-]{1,180}$`)
 var advertisedCount = regexp.MustCompile(`(?i)([\d,]+)\s+questions\s*(?:&|and)\s*answers`)
 var questionNumber = regexp.MustCompile(`(?i)question\s*#?\s*:?\s*(\d+)`)
 var topicNumber = regexp.MustCompile(`(?i)topic\s*#?\s*:?\s*(\d+)`)
-var answerLetters = regexp.MustCompile(`^[A-F]+$`)
+var answerLetters = regexp.MustCompile(`^[A-H]+$`)
+var optionLine = regexp.MustCompile(`^([A-H])[.):]\s+(.+)$`)
+var inlineAnswer = regexp.MustCompile(`(?i)^(?:suggested|correct) answer\s*:\s*([A-H](?:[ ,]*[A-H])*)\s*$`)
 var accessNotice = regexp.MustCompile(`(?i)log in to continue|this section is not available anymore|verify you are human|contributor access required`)
 
 type forumHTTP struct {
@@ -269,6 +271,44 @@ func forumQuestions(progress forumProgress) []models.QuestionData {
 	return items
 }
 
+// Forum questions can present options as text separated by <br> rather than list items.
+func parseForumQuestion(doc *goquery.Document, link string) *models.QuestionData {
+	question := parseDiscussion(doc, link)
+	if len(question.Questions) >= 2 {
+		return question
+	}
+	card := doc.Find(".card-text").First().Clone()
+	card.Find("script, style").Remove()
+	card.Find("br").ReplaceWithHtml("\n")
+	var stem, options []string
+	for _, raw := range strings.Split(card.Text(), "\n") {
+		line := strings.Join(strings.Fields(raw), " ")
+		if line == "" {
+			continue
+		}
+		if answer := inlineAnswer.FindStringSubmatch(line); answer != nil {
+			question.Answer = strings.ToUpper(strings.NewReplacer(" ", "", ",", "").Replace(answer[1]))
+			break
+		}
+		lower := strings.ToLower(line)
+		if strings.HasPrefix(lower, "suggested answer") || strings.HasPrefix(lower, "correct answer") {
+			break
+		}
+		if parts := optionLine.FindStringSubmatch(line); parts != nil && parts[1][0] == byte('A'+len(options)) {
+			options = append(options, parts[1]+". "+parts[2])
+		} else if len(options) == 0 {
+			stem = append(stem, line)
+		} else {
+			options[len(options)-1] += " " + line
+		}
+	}
+	if len(options) >= 2 && len(stem) > 0 {
+		question.Content = strings.Join(stem, "\n")
+		question.Questions = options
+	}
+	return question
+}
+
 // DownloadForum uses the upstream discussion parser with a single resumable request queue.
 func DownloadForum(provider, slug, stateDir, output string) (int, error) {
 	if !examSlug.MatchString(provider) || !examSlug.MatchString(slug) {
@@ -281,7 +321,7 @@ func DownloadForum(provider, slug, stateDir, output string) (int, error) {
 	httpClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	h := forumHTTP{client: httpClient, interval: 3*time.Second, retryDelay: 30*time.Second, cooldownPath: filepath.Join(stateDir, "cooldown.json")}
+	h := forumHTTP{client: httpClient, interval: 6*time.Second, retryDelay: 30*time.Second, cooldownPath: filepath.Join(stateDir, "cooldown.json")}
 	if err := loadForumJSON(h.cooldownPath, &h.next); err != nil {
 		return 0, err
 	}
@@ -328,14 +368,17 @@ func (h *forumHTTP) download(provider, slug, stateDir, output string) (int, erro
 		if err != nil {
 			return 0, err
 		}
-		question := parseDiscussion(page, link)
-		if len(question.Questions) < 2 || questionID(*question) == "" || !answerLetters.MatchString(question.Answer) {
+		question := parseForumQuestion(page, link)
+		if len(question.Questions) < 2 || questionID(*question) == "" || question.Content == "" {
 			if accessNotice.MatchString(page.Find("body").Text()) {
 				return 0, fmt.Errorf("discussion access blocked at %s", link)
 			}
 			blocked++
 			fmt.Printf("Discussion without a complete question: %s\n", link)
 			continue
+		}
+		if !answerLetters.MatchString(question.Answer) {
+			question.Answer = ""
 		}
 		progress.Questions[link] = *question
 		if err := saveForumJSON(progressPath, progress); err != nil {
@@ -347,6 +390,13 @@ func (h *forumHTTP) download(provider, slug, stateDir, output string) (int, erro
 	if len(items) != total {
 		return 0, fmt.Errorf("incomplete exam: %d/%d questions, %d discussions without a complete question", len(items), total, blocked)
 	}
+	var corrected int
+	for _, item := range items {
+		if item.Answer != "" {
+			corrected++
+		}
+	}
+	fmt.Printf("Coverage: %d/%d questions, %d explicit answers\n", len(items), total, corrected)
 	utils.WriteData(items, output, true, "md")
 	return total, nil
 }
