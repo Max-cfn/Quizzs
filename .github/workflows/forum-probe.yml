@@ -34,9 +34,11 @@ jobs:
             "examtopics-downloader/internal/utils"
             "fmt"
             "path/filepath"
+            "regexp"
             "strings"
             "testing"
             "time"
+            "github.com/PuerkitoBio/goquery"
           )
           func TestLiveDiscussionProbe(t *testing.T) {
             h:=forumHTTP{client:utils.NewHTTPClient(), interval:3*time.Second, retryDelay:30*time.Second,cooldownPath:filepath.Join(t.TempDir(),"cooldown.json")}
@@ -51,6 +53,16 @@ jobs:
               body:=strings.ToLower(strings.Join(strings.Fields(doc.Find("body").Text())," "))
               fmt.Printf("probe %s · choices=%d · body=%t · answer=%t · question ID=%t · marker=%q · notice=%q\n", path, len(item.Questions), item.Content!="",item.Answer!="",questionID(*item)!="",accessNotice.FindString(body), doc.Find("title").Text())
               fmt.Printf("choice elements=%d · choice containers=%d · answer tallies=%d · question text bytes=%d\\n", doc.Find(".multi-choice-item").Length(), doc.Find(".question-choices-container, .choice-list").Length(), doc.Find(".voted-answers-tally, .question-answer").Length(), len(item.Content))
+              fields:=[]struct{name,expr string}{
+                {"question option markers", `(?i)(?:^|\s)([A-H])\s*[.:\)]\s+`},
+                {"suggested answer letters", `(?i)suggested\s+answer\s*:\s*([A-H](?:[, ]*[A-H])*)\b`},
+                {"correct answer letters", `(?i)correct\s+answer\s*:\s*([A-H](?:[, ]*[A-H])*)\b`},
+              }
+              for _,field:=range fields {
+                rx:=regexp.MustCompile(field.expr)
+                fmt.Printf("%s in question=%d, entire page=%d\n",field.name,len(rx.FindAllStringSubmatch(item.Content,-1)),len(rx.FindAllStringSubmatch(doc.Find("body").Text(),-1)))
+              }
+              fmt.Printf("Card child tags: %v\n",doc.Find(".card-text").First().Children().Map(func(_ int,el *goquery.Selection) string {return goquery.NodeName(el)}))
               for _,clue:=range []string{"not available", "use the main exam page", "login", "sign in", "cloudflare", "access denied", "just a moment", "enable javascript", "discussion is not", "security check", "not available anymore", "discussion section", "main exam", "view the question", "question content", "available on", "has been removed", "show answer", "suggested answer", "question is unavailable", "no longer available", "locked", "contributor only", "to view this question", "limited", "subscription", "logged in", "requires an account", "temporarily inaccessible"} {
                 if strings.Contains(body,clue) { fmt.Println("marker:",clue) }
               }
