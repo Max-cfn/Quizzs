@@ -49,7 +49,8 @@ func retryAt(value string, now time.Time, fallback time.Duration) time.Time {
 }
 
 func (h *forumHTTP) page(pageURL string) (*goquery.Document, error) {
-	for attempt := 0; attempt < 2; attempt++ {
+	redirected := false
+	for attempt := 0; attempt < 2; {
 		if delay := time.Until(h.next); delay > 0 {
 			if delay > 60*time.Second {
 				return nil, fmt.Errorf("cooldown until %s", h.next.UTC().Format(time.RFC3339))
@@ -67,6 +68,12 @@ func (h *forumHTTP) page(pageURL string) (*goquery.Document, error) {
 			return document, err
 		}
 		res.Body.Close()
+		if !redirected && (res.StatusCode == http.StatusMovedPermanently || res.StatusCode == http.StatusPermanentRedirect) {
+			if canonical := canonicalPageURL(pageURL, res.Header.Get("Location")); canonical != "" {
+				pageURL, redirected = canonical, true
+				continue
+			}
+		}
 		if res.StatusCode != http.StatusTooManyRequests && res.StatusCode != http.StatusServiceUnavailable {
 			return nil, fmt.Errorf("HTTP %d at %s", res.StatusCode, pageURL)
 		}
@@ -78,11 +85,29 @@ func (h *forumHTTP) page(pageURL string) (*goquery.Document, error) {
 			return nil, err
 		}
 		fmt.Printf("HTTP %d at %s · resume at %s\n", res.StatusCode, pageURL, h.next.UTC().Format(time.RFC3339))
-		if attempt == 1 || time.Until(h.next) > 60*time.Second {
+		attempt++
+		if attempt == 2 || time.Until(h.next) > 60*time.Second {
 			return nil, fmt.Errorf("HTTP %d at %s · resume at %s", res.StatusCode, pageURL, h.next.UTC().Format(time.RFC3339))
 		}
 	}
-	panic("unreachable")
+	return nil, errors.New("request attempts exhausted")
+}
+
+func canonicalPageURL(current, location string) string {
+	base, err := url.Parse(current)
+	if err != nil || location == "" {
+		return ""
+	}
+	target, err := base.Parse(location)
+	if err != nil || target.Scheme != base.Scheme || target.Host != base.Host || target.User != nil ||
+		target.RawQuery != base.RawQuery || strings.TrimSuffix(target.Path, "/") != strings.TrimSuffix(base.Path, "/") {
+		return ""
+	}
+	target.Fragment = ""
+	if target.String() == base.String() {
+		return ""
+	}
+	return target.String()
 }
 
 type forumIndex struct {
@@ -147,11 +172,13 @@ func (h *forumHTTP) index(provider, stateDir string) ([]string, error) {
 		state = forumIndex{}
 	}
 	indexURL := examTopicsOrigin+"/discussions/"+provider+"/"
+	var first *goquery.Document
 	if state.PageCount == 0 {
 		doc, err := h.page(indexURL)
 		if err != nil {
 			return nil, err
 		}
+		first = doc
 		state.PageCount, _ = strconv.Atoi(strings.TrimSpace(doc.Find(".discussion-list-page-indicator strong").Eq(1).Text()))
 		state.NextPage = 1
 		if state.PageCount == 0 {
@@ -162,8 +189,15 @@ func (h *forumHTTP) index(provider, stateDir string) ([]string, error) {
 		}
 	}
 	for page := state.NextPage; page <= state.PageCount; page++ {
-		pageURL := indexURL+strconv.Itoa(page)
-		doc, err := h.page(pageURL)
+		pageURL := indexURL
+		if page > 1 {
+			pageURL += strconv.Itoa(page) + "/"
+		}
+		doc := first
+		var err error
+		if page != 1 || first == nil {
+			doc, err = h.page(pageURL)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("index %d/%d: %w", page-1, state.PageCount, err)
 		}

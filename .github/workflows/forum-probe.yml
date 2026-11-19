@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t quizzs-forum-downloader:local downloader
-      - name: Run the patched CloudOps downloader with a short request budget
+      - name: Run the patched CloudOps downloader across canonical forum pages
         run: |
           state="$(mktemp -d)"
           code=0

@@ -72,9 +72,8 @@ func TestForumResumeAndReuseIndex(t *testing.T) {
 		switch r.URL.Path {
 		case exam: return testResponse(200, "<body>2 Questions &amp; Answers</body>", ""), nil
 		case otherExam: return testResponse(200, "<body>1 Questions &amp; Answers</body>", ""), nil
-		case index: return testResponse(200, `<div class="discussion-list-page-indicator"><strong>1</strong><strong>2</strong></div>`, ""), nil
-		case index+"1": return testResponse(200, `<a href="`+discussion1+`">q1</a><a href="`+examTopicsOrigin+discussion1+`">duplicate</a>`, ""), nil
-		case index+"2":
+		case index: return testResponse(200, `<div class="discussion-list-page-indicator"><strong>1</strong><strong>2</strong></div><a href="`+discussion1+`">q1</a><a href="`+examTopicsOrigin+discussion1+`">duplicate</a>`, ""), nil
+		case index+"2/":
 			if !available {
 				return testResponse(403, "", ""), nil
 			}
@@ -96,7 +95,7 @@ func TestForumResumeAndReuseIndex(t *testing.T) {
 	if count, err := h.download("amazon", "example", dir, out); count != 2 || err != nil {
 		t.Fatalf("expected full download, got %d %v", count, err)
 	}
-	if !reflect.DeepEqual(requests, []string{exam, index+"2", discussion1, discussion2}) {
+	if !reflect.DeepEqual(requests, []string{exam, index+"2/", discussion1, discussion2}) {
 		t.Fatalf("did not resume or deduplicate: %v", requests)
 	}
 	markdown, err := os.ReadFile(out)
@@ -109,5 +108,17 @@ func TestForumResumeAndReuseIndex(t *testing.T) {
 	}
 	if !reflect.DeepEqual(requests, []string{otherExam, discussionOther}) {
 		t.Fatalf("did not reuse the Amazon index: %v", requests)
+	}
+}
+
+func TestCanonicalForumPage(t *testing.T) {
+	base := examTopicsOrigin + "/discussions/amazon/2"
+	if got := canonicalPageURL(base, "/discussions/amazon/2/"); got != base+"/" {
+		t.Fatalf("canonical path rejected: %q", got)
+	}
+	for _, redirect := range []string{"/login/", "https://example.org/discussions/amazon/2/"} {
+		if got := canonicalPageURL(base, redirect); got != "" {
+			t.Fatalf("followed unrelated redirect: %q", got)
+		}
 	}
 }
