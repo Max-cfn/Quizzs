@@ -50,7 +50,8 @@ jobs:
               item:=parseDiscussion(doc,link)
               body:=strings.ToLower(strings.Join(strings.Fields(doc.Find("body").Text())," "))
               fmt.Printf("probe %s · choices=%d · body=%t · answer=%t · question ID=%t · marker=%q · notice=%q\n", path, len(item.Questions), item.Content!="",item.Answer!="",questionID(*item)!="",accessNotice.FindString(body), doc.Find("title").Text())
-              for _,clue:=range []string{"not available", "use the main exam page", "login", "sign in", "cloudflare", "access denied", "just a moment", "enable javascript", "discussion is not", "security check"} {
+              fmt.Printf("choice elements=%d · choice containers=%d · answer tallies=%d · question text bytes=%d\\n", doc.Find(".multi-choice-item").Length(), doc.Find(".question-choices-container, .choice-list").Length(), doc.Find(".voted-answers-tally, .question-answer").Length(), len(item.Content))
+              for _,clue:=range []string{"not available", "use the main exam page", "login", "sign in", "cloudflare", "access denied", "just a moment", "enable javascript", "discussion is not", "security check", "not available anymore", "discussion section", "main exam", "view the question", "question content", "available on", "has been removed", "show answer", "suggested answer", "question is unavailable", "no longer available", "locked", "contributor only", "to view this question", "limited", "subscription", "logged in", "requires an account", "temporarily inaccessible"} {
                 if strings.Contains(body,clue) { fmt.Println("marker:",clue) }
               }
             }
