@@ -1,0 +1,41 @@
+name: Verify live exam downloads
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/validated-exam-downloads]
+    paths: [.github/workflows/live-scraper.yml]
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Check live coverage
+        run: |
+          node <<'NODE'
+          const {catalog,scrape}=require('./scrape');
+          const fs=require('node:fs/promises');
+          const os=require('node:os');
+          const path=require('node:path');
+          (async()=>{
+            const dir=await fs.mkdtemp(path.join(os.tmpdir(),'exams-'));
+            for (const [provider,slug] of [
+              ['amazon','aws-certified-generative-ai-developer-professional-aip-c01'],
+              ['amazon','aws-certified-cloudops-engineer-associate-soa-c03'],
+              ['hashicorp','terraform-associate-004'],['anthropic','cca-f'],['nvidia','nca-aiio']
+            ]) {
+              const job={};
+              try {
+                const items=await catalog(provider);
+                if (!items.some(item=>item.slug===slug)) throw Error('Absent du catalogue');
+                console.log(provider,slug,'complete',await scrape(dir,provider,slug,job));
+              } catch(e) {console.error(provider,slug,job.stepLabel||'catalogue / fiche',e.message); process.exitCode=1;}
+            }
+          })().catch(e=>{console.error(e.message);process.exitCode=1;});
+          NODE
