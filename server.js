@@ -268,21 +268,28 @@ app.get('/api/providers/:id/exams/:slug/info', async (req, res) => {
 });
 
 const jobs=new Map();
+let forumQueue = Promise.resolve();
 app.post('/api/download',(req,res)=>{
     const {provider,search}=req.body;
     if (!PROVIDERS.some(p=>p.id===provider) || typeof search!=='string' || !/^[a-z0-9-]{1,180}$/.test(search))
         return res.status(400).json({error:'Examen inconnu'});
     const name=provider+'/'+search;
     if(jobs.get(name)?.running) return res.json({status:'started'});
-    if ([...jobs.values()].some(job => job.running))
-        return res.status(409).json({error:'Un téléchargement ExamTopics est déjà en cours.'});
-    const job={name,examName:name,stepLabel:'Préparation du downloader',running:true,logLines:[]};
+    const job={name,examName:name,stepLabel:'En attente du downloader',running:true,logLines:[]};
     jobs.set(name,job);
     res.json({status:'started'});
-    downloadForum(EXAMS_DIR,provider,search,job)
-        .then(n=>{job.result=n+' questions enregistrées';})
-        .catch(err=>{job.result=job.stepLabel+' · '+err.message;})
-        .finally(()=>{job.running=false;});
+    forumQueue = forumQueue.then(async () => {
+        job.stepLabel = 'Préparation du downloader';
+        try {
+            const count = await downloadForum(EXAMS_DIR, provider, search, job);
+            job.result = count + ' questions enregistrées';
+        } catch (err) {
+            job.result = job.stepLabel + ' · ' + err.message;
+        } finally {
+            job.running = false;
+        }
+        await new Promise(resolve => setTimeout(resolve, 3000));
+    });
 });
 app.get('/api/download/status',(req,res)=>{
     const all=[...jobs.values()];
