@@ -16,6 +16,7 @@ process.on('unhandledRejection', (err) => {
 const app = express();
 const PORT = 3000;
 const EXAMS_DIR = path.join(__dirname, 'exams');
+const SHARED_EXAMS_DIR = path.join(__dirname, 'shared-exams');
 
 // Ensure exams directory exists
 if (!fs.existsSync(EXAMS_DIR)) {
@@ -94,10 +95,11 @@ function detectProvider(filename, content) {
 // API: List downloaded exams (grouped by provider)
 app.get('/api/exams', (req, res) => {
     try {
-        const files = fs.readdirSync(EXAMS_DIR)
+        const directory = req.query.library === 'shared' ? SHARED_EXAMS_DIR : EXAMS_DIR;
+        const files = (fs.existsSync(directory) ? fs.readdirSync(directory) : [])
             .filter(f => f.endsWith('.md'))
             .map(f => {
-                const filePath = path.join(EXAMS_DIR, f);
+                const filePath = path.join(directory, f);
                 const stats = fs.statSync(filePath);
                 const content = fs.readFileSync(filePath, 'utf8');
                 const questionCount = parseQuestionsMarkdown(content).length;
@@ -146,7 +148,8 @@ app.get('/api/exams', (req, res) => {
 
 // API: Get exam content
 app.get('/api/exams/:filename', (req, res) => {
-    const filePath = path.join(EXAMS_DIR, req.params.filename);
+    const directory = req.query.library === 'shared' ? SHARED_EXAMS_DIR : EXAMS_DIR;
+    const filePath = path.join(directory, req.params.filename);
     if (!fs.existsSync(filePath)) {
         return res.status(404).json({ error: 'Exam not found' });
     }

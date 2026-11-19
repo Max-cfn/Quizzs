@@ -33,10 +33,11 @@
     }
 
     // ─── Home: Load Exam Library ─────────────────────────────────────────
+    let activeLibrary = 'personal';
     async function loadLibrary() {
         const container = document.getElementById('examLibrary');
         try {
-            const res = await fetch('/api/exams');
+            const res = await fetch('/api/exams?library=' + activeLibrary);
             const data = await res.json();
             
             if (data.exams.length === 0) {
@@ -63,8 +64,8 @@
                                 <span>📝 ${exam.questions} questions</span>
                                 <span>📅 ${new Date(exam.downloadedAt).toLocaleDateString('fr-FR')}</span>
                             </div>
-                            <button class="exam-card-rename" data-filename="${exam.filename}" data-name="${escapeHTML(exam.name)}" title="Renommer">✏️</button>
-                            <button class="exam-card-delete" data-filename="${exam.filename}" title="Supprimer">🗑️</button>
+                            ${activeLibrary === 'personal' ? `<button class="exam-card-rename" data-filename="${exam.filename}" data-name="${escapeHTML(exam.name)}" title="Renommer">✏️</button>
+                            <button class="exam-card-delete" data-filename="${exam.filename}" title="Supprimer">🗑️</button>` : ''}
                         </div>`;
                 }
                 html += `</div></div>`;
@@ -113,9 +114,19 @@
         }
     }
 
+    document.querySelectorAll('[data-library]').forEach(button => {
+        button.addEventListener('click', () => {
+            activeLibrary = button.dataset.library;
+            document.querySelectorAll('[data-library]').forEach(tab => {
+                tab.setAttribute('aria-pressed', String(tab === button));
+            });
+            loadLibrary();
+        });
+    });
+
     async function loadExam(filename) {
         try {
-            const res = await fetch(`/api/exams/${filename}`);
+            const res = await fetch(`/api/exams/${encodeURIComponent(filename)}?library=${activeLibrary}`);
             const data = await res.json();
             allQuestions = parseQuestionsMarkdown(data.content);
             
