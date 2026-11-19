@@ -7,7 +7,9 @@ on:
 permissions:
   contents: read
   actions: read
-concurrency: quizzs-examtopics-forum
+concurrency:
+  group: quizzs-examtopics-forum
+  cancel-in-progress: true
 jobs:
   replay:
     runs-on: ubuntu-latest
@@ -33,7 +35,7 @@ jobs:
           print(f"Replaying {len(links)} existing links without requesting index pages")
           PY
           code=0
-          docker run --rm -v "$state:/state" quizzs-forum-downloader:local \
+          docker run --rm --user "$(id -u):$(id -g)" -v "$state:/state" quizzs-forum-downloader:local \
             -p amazon -s "$exam" -o "/state/$exam.md" 2>&1 | tee "$RUNNER_TEMP/replay.log" || code=$?
           printf 'HTTP 429 responses: %s · Exit: %s\n' "$(grep -c '^HTTP 429' "$RUNNER_TEMP/replay.log" || true)" "$code"
           python3 - "$state/amazon_$exam.json" <<'PY'
