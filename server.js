@@ -283,7 +283,7 @@ app.post('/api/download',(req,res)=>{
         try {
             const count = await downloadForum(EXAMS_DIR, provider, search, job);
             job.result = count + ' questions enregistrées';
-            if (job.missingAnswers) job.result += ' · ' + job.missingAnswers + ' sans corrigé disponible';
+            if (job.availableQuestions) job.result += ' sur ' + job.availableQuestions + ' repérées sur le forum';
         } catch (err) {
             job.result = job.stepLabel + ' · ' + err.message;
         } finally {
@@ -306,4 +306,5 @@ app.listen(PORT, () => {
     console.log(`  Exams stockés dans: ${EXAMS_DIR}`);
     console.log(`  ${fs.readdirSync(EXAMS_DIR).filter(f => f.endsWith('.md')).length} exam(s) disponible(s)\n`);
 });
+
 

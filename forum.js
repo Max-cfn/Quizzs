@@ -30,6 +30,8 @@ function runDownloader(args, job) {
         process.stderr.setEncoding('utf8');
         const lines = createInterface({ input: process.stdout });
         lines.on('line', line => {
+            const coverage = line.match(/^Coverage: (\d+)\/(\d+) questions, (\d+) explicit answers, (\d+) available$/);
+            if (coverage) job.availableQuestions = Number(coverage[4]);
             if (line) {
                 job.stepLabel = line;
                 job.logLines = [...job.logLines, line].slice(-5);
@@ -59,20 +61,51 @@ async function downloadForum(examsDir, provider, slug, job) {
         await runDownloader(args, job);
         const markdown = await fs.readFile(temporaryFile, 'utf8');
         const expected = Number(job.stepLabel.match(/^Complete: (\d+) questions$/)?.[1]);
-        const questions = parseQuestionsMarkdown(markdown);
-        const count = questions.length;
-        job.missingAnswers = questions.filter(question => !question.correctAnswer).length;
-        if (count === 0 || count !== expected) throw new Error('Le Markdown ne contient pas toutes les questions attendues.');
         const previous = await fs.readFile(destination, 'utf8').catch(err => {
             if (err.code === 'ENOENT') return '';
             throw err;
         });
-        if (parseQuestionsMarkdown(previous).length > count) throw new Error('Le fichier existant contient davantage de questions.');
+        const reviewed = reviewForumDownload(markdown, job.availableQuestions, expected, previous);
+        job.missingAnswers = reviewed.missingAnswers;
+        await fs.writeFile(temporaryFile, reviewed.markdown, 'utf8');
         await fs.rename(temporaryFile, destination);
-        return count;
+        return reviewed.count;
     } finally {
         await fs.rm(temporaryFile, { force: true });
     }
 }
 
-module.exports = { downloadForum };
+function reviewForumDownload(markdown, available, expected, previous = '') {
+    if (!Number.isInteger(available) || available < 1 || !Number.isInteger(expected) || expected < 1) {
+        throw new Error('La couverture du forum est inconnue.');
+    }
+    const usable = new Map();
+    let parsed = 0;
+    let missingAnswers = 0;
+    for (const block of markdown.split(/^-{3,}$/m)) {
+        const [question] = parseQuestionsMarkdown(block);
+        if (!question) continue;
+        parsed++;
+        if (!question.correctAnswer) missingAnswers++;
+        if (question.number !== '?' && question.choices.length >= 2 &&
+            question.text !== question.title && question.correctAnswer && question.explanation) {
+            usable.set(question.id, block.trim());
+        }
+    }
+    if (parsed !== expected) throw new Error('Le Markdown ne correspond pas au nombre de questions extraites.');
+    const minimum = Math.ceil(available * 0.75);
+    if (usable.size < minimum) {
+        throw new Error(`Forum incomplet ou inexploitable · ${usable.size}/${available} questions avec réponse et explication, seuil ${minimum}.`);
+    }
+    if (parseQuestionsMarkdown(previous).length > usable.size) {
+        throw new Error('Le fichier existant contient davantage de questions.');
+    }
+    return {
+        count: usable.size,
+        missingAnswers,
+        markdown: [...usable.values()].join('\n\n----------------------------------------\n\n') + '\n'
+    };
+}
+
+module.exports = { downloadForum, reviewForumDownload };
+

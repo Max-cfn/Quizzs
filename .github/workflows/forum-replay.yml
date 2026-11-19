@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t quizzs-forum-downloader:local downloader
-      - name: Reuse the previous discovery run and measure coverage after transient network recovery
+      - name: Reuse the previous discovery run and measure community answers and the replacement threshold
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -48,4 +48,20 @@ jobs:
           print("Explicit answers:",sum(bool(q.get("answer")) for q in items))
           print("Missing topic 1 numbers:", sorted(set(range(1,data.get("Total",200)+1))-numbers))
           PY
-          exit "$code"
+          if [ "$code" -ne 0 ]; then exit "$code"; fi
+          node - "$state/$exam.md" "$RUNNER_TEMP/replay.log" <<'JS'
+          const fs = require('node:fs');
+          const {parseQuestionsMarkdown} = require('./public/parser');
+          const {reviewForumDownload} = require('./forum');
+          const markdown = fs.readFileSync(process.argv[2], 'utf8');
+          const log = fs.readFileSync(process.argv[3], 'utf8');
+          const coverage = log.match(/^Coverage: (\d+)\/(\d+) questions, (\d+) explicit answers, (\d+) available$/m);
+          if (!coverage) throw new Error('Coverage line missing.');
+          const questions = parseQuestionsMarkdown(markdown);
+          console.log('Parsed conversation replies:', questions.reduce((n, q) => n + q.discussions.length, 0));
+          console.log('Questions with parsed conversations:', questions.filter(q => q.discussions.length).length);
+          console.log('Questions with a community answer:', questions.filter(q => q.answerConfidence === 1).length);
+          console.log('Questions with an answer and supporting explanation:', questions.filter(q => q.correctAnswer && q.explanation).length);
+          const reviewed = reviewForumDownload(markdown, Number(coverage[4]), Number(coverage[1]));
+          console.log('Replacement quality gate passed:', reviewed.count, '/', coverage[4]);
+          JS

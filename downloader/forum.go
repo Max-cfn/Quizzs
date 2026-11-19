@@ -28,6 +28,7 @@ const indexLifetime = 24 * time.Hour
 
 var examSlug = regexp.MustCompile(`^[a-z0-9-]{1,180}$`)
 var advertisedCount = regexp.MustCompile(`(?i)([\d,]+)\s+questions\s*(?:&|and)\s*answers`)
+var numberedDiscussion = regexp.MustCompile(`-topic-(\d+)-question-(\d+)(?:-|/)`)
 var questionNumber = regexp.MustCompile(`(?i)question\s*#?\s*:?\s*(\d+)`)
 var topicNumber = regexp.MustCompile(`(?i)topic\s*#?\s*:?\s*(\d+)`)
 var answerLetters = regexp.MustCompile(`^[A-H]+$`)
@@ -405,6 +406,7 @@ func (h *forumHTTP) download(provider, slug, stateDir, output string) (int, erro
 		return 0, err
 	}
 	var blocked int
+	availableQuestions := make(map[string]struct{})
 	for _, link := range index {
 		if discussionURL(link, provider) != link {
 			return 0, errors.New("invalid saved discussion URL")
@@ -412,6 +414,11 @@ func (h *forumHTTP) download(provider, slug, stateDir, output string) (int, erro
 		if !strings.Contains(link, "-exam-"+slug+"-topic-") && !strings.HasSuffix(link, "-exam-"+slug+"-topic/") {
 			continue
 		}
+		key := link
+		if numbered := numberedDiscussion.FindStringSubmatch(link); numbered != nil {
+			key = numbered[1]+"/"+numbered[2]
+		}
+		availableQuestions[key] = struct{}{}
 		if _, done := progress.Questions[link]; done {
 			continue
 		}
@@ -438,8 +445,9 @@ func (h *forumHTTP) download(provider, slug, stateDir, output string) (int, erro
 		fmt.Printf("Questions %s: %d/%d\n", slug, len(forumQuestions(progress)), total)
 	}
 	items := forumQuestions(progress)
-	if len(items) != total {
-		return 0, fmt.Errorf("incomplete exam: %d/%d questions, %d discussions without a complete question", len(items), total, blocked)
+	available := min(total, len(availableQuestions))
+	if available == 0 || len(items) == 0 {
+		return 0, fmt.Errorf("no usable discussion pages: %d available, %d blocked", available, blocked)
 	}
 	var corrected int
 	for _, item := range items {
@@ -447,7 +455,8 @@ func (h *forumHTTP) download(provider, slug, stateDir, output string) (int, erro
 			corrected++
 		}
 	}
-	fmt.Printf("Coverage: %d/%d questions, %d explicit answers\n", len(items), total, corrected)
+	fmt.Printf("Coverage: %d/%d questions, %d explicit answers, %d available\n", len(items), total, corrected, available)
 	utils.WriteData(items, output, true, "md")
-	return total, nil
+	return len(items), nil
 }
+

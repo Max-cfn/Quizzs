@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "download": "node downloader.js",
-    "test": "node --test scrape.test.js"
+    "test": "node --test scrape.test.js forum.test.js"
   },
   "dependencies": {
     "express": "^4.21.0",
