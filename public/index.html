@@ -45,7 +45,7 @@
                     <button class="modal-close" id="closeDownloadModal">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p class="modal-info">Télécharge un jeu de questions via Docker.</p>
+                    <p class="modal-info">Télécharge un jeu de questions depuis ExamTopics.</p>
                     
                     <div class="dl-steps">
                         <div class="dl-step">
@@ -88,13 +88,7 @@
                     </div>
                     <button class="btn btn-primary btn-full" id="btnStartDownload">🚀 Lancer le téléchargement</button>
                     
-                    <div class="modal-alt">
-                        <p>Ou copiez cette commande dans votre terminal :</p>
-                        <div class="cmd-copy">
-                            <code id="dlCommand">docker run -it --name examtopics-dl ghcr.io/thatonecodes/examtopics-downloader:latest -p cisco -s 200-301 -save-links -o output.md</code>
-                            <button class="btn btn-sm btn-secondary" id="btnCopyCmd" title="Copier">📋</button>
-                        </div>
-                    </div>
+                    
                 </div>
             </div>
         </div>

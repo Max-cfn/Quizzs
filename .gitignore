@@ -21,3 +21,6 @@ Thumbs.db
 
 # Lock files (optional, remove if you want reproducible builds)
 package-lock.json
+
+exams/*.partial.json
+exams/*.tmp

@@ -227,3 +227,5 @@ function parseQuestionBlock(block) {
         discussions
     };
 }
+
+if (typeof module !== 'undefined') module.exports = {parseQuestionsMarkdown};
