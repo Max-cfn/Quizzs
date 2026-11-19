@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -142,5 +143,26 @@ func TestTextOnlyDiscussionChoices(t *testing.T) {
 		if !reflect.DeepEqual(item.Questions, want) || item.Content != "Question text?" || item.Answer != tc.answer {
 			t.Fatalf("unexpected text-only parsing: %+v", item)
 		}
+	}
+}
+
+func TestForumRetriesResetWithoutRetryingForbidden(t *testing.T) {
+	calls := 0
+	h := forumHTTP{client: &http.Client{Transport: forumTransport(func(_ *http.Request) (*http.Response, error) {
+		calls++
+		switch calls {
+		case 1:
+			return nil, syscall.ECONNRESET
+		case 2:
+			return testResponse(200, "<body>ok</body>", ""), nil
+		default:
+			return testResponse(403, "", ""), nil
+		}
+	})}}
+	if _, err := h.page(examTopicsOrigin); err != nil || calls != 2 {
+		t.Fatalf("expected retry after reset, got %d calls, %v", calls, err)
+	}
+	if _, err := h.page(examTopicsOrigin); err == nil || calls != 3 {
+		t.Fatalf("expected immediate stop on forbidden, got %d calls, %v", calls, err)
 	}
 }

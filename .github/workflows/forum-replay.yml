@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t quizzs-forum-downloader:local downloader
-      - name: Reuse the previous discovery run and measure verified coverage
+      - name: Reuse the previous discovery run and measure coverage after transient network recovery
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

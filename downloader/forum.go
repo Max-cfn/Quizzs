@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"examtopics-downloader/internal/models"
@@ -62,13 +65,22 @@ func (h *forumHTTP) page(pageURL string) (*goquery.Document, error) {
 		}
 		h.next = time.Now().Add(h.interval)
 		res, err := h.client.Get(pageURL)
-		if err != nil {
-			return nil, err
-		}
-		if res.StatusCode == http.StatusOK {
-			document, err := goquery.NewDocumentFromReader(res.Body)
+		if err == nil && res.StatusCode == http.StatusOK {
+			document, readErr := goquery.NewDocumentFromReader(res.Body)
 			res.Body.Close()
-			return document, err
+			if readErr == nil {
+				return document, nil
+			}
+			err = readErr
+		}
+		if err != nil {
+			if attempt == 1 || !transientForumError(err) {
+				return nil, err
+			}
+			h.next = maxTime(h.next, time.Now().Add(h.retryDelay))
+			fmt.Printf("Connection interrupted at %s · retry at %s\n", pageURL, h.next.UTC().Format(time.RFC3339))
+			attempt++
+			continue
 		}
 		res.Body.Close()
 		if !redirected && (res.StatusCode == http.StatusMovedPermanently || res.StatusCode == http.StatusPermanentRedirect) {
@@ -81,9 +93,7 @@ func (h *forumHTTP) page(pageURL string) (*goquery.Document, error) {
 			return nil, fmt.Errorf("HTTP %d at %s", res.StatusCode, pageURL)
 		}
 		deadline := retryAt(res.Header.Get("Retry-After"), time.Now(), h.retryDelay)
-		if deadline.After(h.next) {
-			h.next = deadline
-		}
+		h.next = maxTime(h.next, deadline)
 		if err := saveForumJSON(h.cooldownPath, h.next); err != nil {
 			return nil, err
 		}
@@ -94,6 +104,20 @@ func (h *forumHTTP) page(pageURL string) (*goquery.Document, error) {
 		}
 	}
 	return nil, errors.New("request attempts exhausted")
+}
+
+func transientForumError(err error) bool {
+	var networkError net.Error
+	return (errors.As(err, &networkError) && networkError.Timeout()) ||
+		errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
+}
+
+func maxTime(left, right time.Time) time.Time {
+	if right.After(left) {
+		return right
+	}
+	return left
 }
 
 func canonicalPageURL(current, location string) string {
