@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - name: Check live coverage
+      - name: Check live coverage and source access notices
         run: |
           node <<'NODE'
           const {catalog,scrape}=require('./scrape');
