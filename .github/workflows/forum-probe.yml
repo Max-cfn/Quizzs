@@ -1,0 +1,36 @@
+name: Probe ExamTopics forum
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/validated-exam-downloads]
+    paths: [.github/workflows/forum-probe.yml]
+permissions: {}
+concurrency: quizzs-examtopics-forum
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe CloudOps one request at a time
+        run: |
+          python3 - <<'PY'
+          import re, time, urllib.error, urllib.request
+          origin = "https://www.examtopics.com"
+          paths = [
+              "/discussions/amazon/",
+              "/discussions/amazon/1",
+              "/discussions/amazon/view/416185-exam-aws-certified-cloudops-engineer-associate-soa-c03-topic/",
+          ]
+          for path in paths:
+              try:
+                  with urllib.request.urlopen(origin + path, timeout=15) as response:
+                      body = response.read().decode("utf-8", "replace")
+                      print(path, response.status, "question_choices=" + str(body.count("multi-choice-item")),
+                            "discussion_links=" + str(len(set(re.findall(r'/discussions/amazon/view/[^"\s<>]+', body)))),
+                            "access_notice=" + str(bool(re.search(r'log in to continue|this section is not available anymore|verify you are human', body, re.I))))
+              except urllib.error.HTTPError as err:
+                  print(path, err.code, "Retry-After=" + str(err.headers.get("Retry-After")))
+                  if err.code in (401, 403, 429):
+                      break
+              time.sleep(3)
+          PY
