@@ -1,0 +1,63 @@
+name: Verify original forum downloader
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/validated-exam-downloads]
+    paths: [.github/workflows/forum-downloader.yml]
+permissions:
+  contents: read
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - { provider: amazon, search: aws-certified-generative-ai-developer-professional-aip-c01 }
+          - { provider: amazon, search: aws-certified-cloudops-engineer-associate-soa-c03 }
+          - { provider: hashicorp, search: terraform-associate-004 }
+          - { provider: anthropic, search: cca-f }
+          - { provider: nvidia, search: nca-aiio }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: thatonecodes/examtopics-downloader
+          ref: cc064ad775d364706ba550909c83d853d830e297
+          path: upstream
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream/go.mod
+          cache-dependency-path: upstream/go.sum
+      - name: Build upstream with the URL fix
+        working-directory: upstream
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("internal/utils/utils.go")
+          s = p.read_text()
+          old = 'return fmt.Sprintf("https://www.examtopics.com%s", addString)'
+          assert s.count(old) == 1
+          s = s.replace(old, '''if strings.HasPrefix(addString, "https://www.examtopics.com/") {
+                  return addString
+              }
+              return fmt.Sprintf("https://www.examtopics.com%s", addString)''')
+          p.write_text(s)
+          PY
+          go build -o "$RUNNER_TEMP/forum-downloader" ./cmd
+      - name: Count results from the original public forum flow
+        env:
+          PROVIDER: ${{ matrix.provider }}
+          SEARCH: ${{ matrix.search }}
+        run: |
+          out="$RUNNER_TEMP/questions.md"
+          log="$RUNNER_TEMP/forum.log"
+          code=0
+          timeout 12m "$RUNNER_TEMP/forum-downloader" -p "$PROVIDER" -s "$SEARCH" -no-cache -c -save-links -o "$out" >"$log" 2>&1 || code=$?
+          # Report counts only. Downloader output stays on the runner.
+          grep -E 'Fetching [0-9]+ pages|Found [0-9]+ unique matching links' "$log" | sed -E 's/.*(Fetching [0-9]+ pages|Found [0-9]+ unique matching links).*/\1/' || true
+          printf 'HTTP 403: %s · HTTP 429: %s\n' "$(grep -c 'status code: 403' "$log" || true)" "$(grep -c 'status code: 429' "$log" || true)"
+          node -e 'const fs=require("node:fs"); const {parseQuestionsMarkdown}=require("./public/parser"); const file=process.argv[1]; const q=fs.existsSync(file)?parseQuestionsMarkdown(fs.readFileSync(file,"utf8")):[]; console.log(process.env.PROVIDER,process.env.SEARCH,"questions="+q.length,"answers="+q.filter(x=>x.correctAnswer).length,"exit="+process.argv[2]);' "$out" "$code"
+          exit "$code"
