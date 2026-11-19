@@ -22,7 +22,7 @@ jobs:
         with:
           go-version-file: upstream/go.mod
           cache-dependency-path: upstream/go.sum
-      - name: Inspect the returned structure of two known discussion pages
+      - name: Verify option extraction on two live discussion pages
         shell: bash
         run: |
           git -C upstream apply ../downloader/downloader.patch
@@ -62,16 +62,6 @@ jobs:
               for _,field:=range fields {
                 rx:=regexp.MustCompile(field.expr)
                 fmt.Printf("%s in question=%d, entire page=%d\n",field.name,len(rx.FindAllStringSubmatch(item.Content,-1)),len(rx.FindAllStringSubmatch(doc.Find("body").Text(),-1)))
-              }
-              card:=doc.Find(".card-text").First().Clone()
-              card.Find("br").ReplaceWithHtml("\n")
-              optionMarkers:=regexp.MustCompile(`(?i)(?:^|\s)([A-H])\s*[.:\)]\s+`)
-              for i,line:=range strings.Split(card.Text(),"\n") {
-                clean:=strings.TrimSpace(line)
-                opts:=optionMarkers.FindAllStringSubmatchIndex(clean,-1)
-                if len(opts)>0 || strings.Contains(strings.ToLower(clean),"suggested answer") {
-                   fmt.Printf("line %d · bytes=%d · strict start=%t · choice positions=%v · answer marker=%d\n",i,len(clean),optionLine.MatchString(clean),opts,strings.Index(strings.ToLower(clean),"suggested answer"))
-                }
               }
               fmt.Printf("Card child tags: %v\n",doc.Find(".card-text").First().Children().Map(func(_ int,el *goquery.Selection) string {return goquery.NodeName(el)}))
               for _,clue:=range []string{"not available", "use the main exam page", "login", "sign in", "cloudflare", "access denied", "just a moment", "enable javascript", "discussion is not", "security check", "not available anymore", "discussion section", "main exam", "view the question", "question content", "available on", "has been removed", "show answer", "suggested answer", "question is unavailable", "no longer available", "locked", "contributor only", "to view this question", "limited", "subscription", "logged in", "requires an account", "temporarily inaccessible"} {

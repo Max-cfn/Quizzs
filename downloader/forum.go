@@ -28,7 +28,8 @@ var advertisedCount = regexp.MustCompile(`(?i)([\d,]+)\s+questions\s*(?:&|and)\s
 var questionNumber = regexp.MustCompile(`(?i)question\s*#?\s*:?\s*(\d+)`)
 var topicNumber = regexp.MustCompile(`(?i)topic\s*#?\s*:?\s*(\d+)`)
 var answerLetters = regexp.MustCompile(`^[A-H]+$`)
-var optionLine = regexp.MustCompile(`^([A-H])[.):]\s+(.+)$`)
+var optionMarker = regexp.MustCompile(`(?i)(?:^|\s)([A-F])\s*[.:\)]\s+`)
+var answerFooter = regexp.MustCompile(`(?i)\b(?:suggested|correct) answer\b`)
 var inlineAnswer = regexp.MustCompile(`(?i)^(?:suggested|correct) answer\s*:\s*([A-H](?:[ ,]*[A-H])*)\s*$`)
 var accessNotice = regexp.MustCompile(`(?i)log in to continue|this section is not available anymore|verify you are human|contributor access required`)
 
@@ -271,40 +272,66 @@ func forumQuestions(progress forumProgress) []models.QuestionData {
 	return items
 }
 
-// Forum questions can present options as text separated by <br> rather than list items.
+// Forum questions can present options as plain text rather than list items.
+func splitForumOptions(text string) (string, []string, string) {
+	var answer string
+	if footer := answerFooter.FindStringIndex(text); footer != nil {
+		line, _, _ := strings.Cut(text[footer[0]:], "\n")
+		if match := inlineAnswer.FindStringSubmatch(strings.TrimSpace(line)); match != nil {
+			answer = strings.ToUpper(strings.NewReplacer(" ", "", ",", "").Replace(match[1]))
+		}
+		text = text[:footer[0]]
+	}
+	markers := optionMarker.FindAllStringSubmatchIndex(text, -1)
+	var ordered [][]int
+	for _, marker := range markers {
+		label := strings.ToUpper(text[marker[2]:marker[3]])[0]
+		if label == 'A' && len(ordered) < 2 {
+			ordered = nil
+		}
+		if label == byte('A'+len(ordered)) {
+			ordered = append(ordered, marker)
+		}
+	}
+	if len(ordered) < 2 {
+		return "", nil, ""
+	}
+	stem := strings.TrimSpace(text[:ordered[0][0]])
+	if stem == "" {
+		return "", nil, ""
+	}
+	options := make([]string, 0, len(ordered))
+	for i, marker := range ordered {
+		end := len(text)
+		if i+1 < len(ordered) {
+			end = ordered[i+1][0]
+		}
+		option := strings.Join(strings.Fields(text[marker[1]:end]), " ")
+		if option == "" {
+			return "", nil, ""
+		}
+		options = append(options, string(rune('A'+i))+". "+option)
+	}
+	return stem, options, answer
+}
+
 func parseForumQuestion(doc *goquery.Document, link string) *models.QuestionData {
 	question := parseDiscussion(doc, link)
 	if len(question.Questions) >= 2 {
 		return question
 	}
-	card := doc.Find(".card-text").First().Clone()
+	card := doc.Find(".card-text").Clone()
 	card.Find("script, style").Remove()
 	card.Find("br").ReplaceWithHtml("\n")
-	var stem, options []string
-	for _, raw := range strings.Split(card.Text(), "\n") {
-		line := strings.Join(strings.Fields(raw), " ")
-		if line == "" {
-			continue
-		}
-		if answer := inlineAnswer.FindStringSubmatch(line); answer != nil {
-			question.Answer = strings.ToUpper(strings.NewReplacer(" ", "", ",", "").Replace(answer[1]))
-			break
-		}
-		lower := strings.ToLower(line)
-		if strings.HasPrefix(lower, "suggested answer") || strings.HasPrefix(lower, "correct answer") {
-			break
-		}
-		if parts := optionLine.FindStringSubmatch(line); parts != nil && parts[1][0] == byte('A'+len(options)) {
-			options = append(options, parts[1]+". "+parts[2])
-		} else if len(options) == 0 {
-			stem = append(stem, line)
-		} else {
-			options[len(options)-1] += " " + line
-		}
+	stem, options, answer := splitForumOptions(card.Text())
+	if len(options) < 2 {
+		stem, options, answer = splitForumOptions(question.Content)
 	}
-	if len(options) >= 2 && len(stem) > 0 {
-		question.Content = strings.Join(stem, "\n")
-		question.Questions = options
+	if len(options) >= 2 {
+		question.Content, question.Questions = stem, options
+		if answer != "" && question.Answer == "" {
+			question.Answer = answer
+		}
 	}
 	return question
 }
