@@ -13,17 +13,47 @@ jobs:
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t quizzs-forum-downloader:local downloader
-      - name: Run the patched CloudOps downloader across canonical forum pages
+      - uses: actions/checkout@v4
+        with:
+          repository: thatonecodes/examtopics-downloader
+          ref: cc064ad775d364706ba550909c83d853d830e297
+          path: upstream
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream/go.mod
+          cache-dependency-path: upstream/go.sum
+      - name: Inspect the returned structure of two known discussion pages
+        shell: bash
         run: |
-          state="$(mktemp -d)"
-          code=0
-          timeout 30s docker run --rm --name quizzs-forum-probe \
-            -v "$state:/state" quizzs-forum-downloader:local \
-            -p amazon -s aws-certified-cloudops-engineer-associate-soa-c03 \
-            > "$RUNNER_TEMP/forum-probe.log" 2>&1 || code=$?
-          docker stop -t 1 quizzs-forum-probe >/dev/null 2>&1 || true
-          cat "$RUNNER_TEMP/forum-probe.log"
-          printf 'HTTP 429 responses observed: %s\n' "$(grep -c '^HTTP 429' "$RUNNER_TEMP/forum-probe.log" || true)"
-          printf 'Downloader exit: %s\n' "$code"
-          exit "$code"
+          git -C upstream apply ../downloader/downloader.patch
+          cp downloader/forum.go upstream/internal/fetch/quizzs_forum.go
+          cd upstream
+          cat > internal/fetch/live_probe_test.go <<'GO'
+          package fetch
+          import (
+            "examtopics-downloader/internal/utils"
+            "fmt"
+            "path/filepath"
+            "strings"
+            "testing"
+            "time"
+          )
+          func TestLiveDiscussionProbe(t *testing.T) {
+            h:=forumHTTP{client:utils.NewHTTPClient(), interval:3*time.Second, retryDelay:30*time.Second,cooldownPath:filepath.Join(t.TempDir(),"cooldown.json")}
+            for _,path:=range []string{
+              "/discussions/amazon/view/424481-exam-aws-certified-cloudops-engineer-associate-soa-c03-topic-1-question-165-discussion/",
+              "/discussions/amazon/view/384230-exam-aws-certified-generative-ai-developer-professional-aip-c01-topic-1-question-15-discussion/",
+            } {
+              link:=examTopicsOrigin+path
+              doc,err:=h.page(link)
+              if err!=nil { t.Fatal(err) }
+              item:=parseDiscussion(doc,link)
+              body:=strings.ToLower(strings.Join(strings.Fields(doc.Find("body").Text())," "))
+              fmt.Printf("probe %s · choices=%d · body=%t · answer=%t · question ID=%t · marker=%q · notice=%q\n", path, len(item.Questions), item.Content!="",item.Answer!="",questionID(*item)!="",accessNotice.FindString(body), doc.Find("title").Text())
+              for _,clue:=range []string{"not available", "use the main exam page", "login", "sign in", "cloudflare", "access denied", "just a moment", "enable javascript", "discussion is not", "security check"} {
+                if strings.Contains(body,clue) { fmt.Println("marker:",clue) }
+              }
+            }
+          }
+          GO
+          go test -count=1 -run TestLiveDiscussionProbe -v ./internal/fetch
