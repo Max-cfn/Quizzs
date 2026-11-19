@@ -4,33 +4,26 @@ on:
   push:
     branches: [fix/validated-exam-downloads]
     paths: [.github/workflows/forum-probe.yml]
-permissions: {}
+permissions:
+  contents: read
 concurrency: quizzs-examtopics-forum
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 6
     steps:
-      - name: Probe CloudOps one request at a time
+      - uses: actions/checkout@v4
+      - run: docker build -t quizzs-forum-downloader:local downloader
+      - name: Run the patched CloudOps downloader with a short request budget
         run: |
-          python3 - <<'PY'
-          import re, time, urllib.error, urllib.request
-          origin = "https://www.examtopics.com"
-          paths = [
-              "/discussions/amazon/",
-              "/discussions/amazon/1",
-              "/discussions/amazon/view/416185-exam-aws-certified-cloudops-engineer-associate-soa-c03-topic/",
-          ]
-          for path in paths:
-              try:
-                  with urllib.request.urlopen(origin + path, timeout=15) as response:
-                      body = response.read().decode("utf-8", "replace")
-                      print(path, response.status, "question_choices=" + str(body.count("multi-choice-item")),
-                            "discussion_links=" + str(len(set(re.findall(r'/discussions/amazon/view/[^"\s<>]+', body)))),
-                            "access_notice=" + str(bool(re.search(r'log in to continue|this section is not available anymore|verify you are human', body, re.I))))
-              except urllib.error.HTTPError as err:
-                  print(path, err.code, "Retry-After=" + str(err.headers.get("Retry-After")))
-                  if err.code in (401, 403, 429):
-                      break
-              time.sleep(3)
-          PY
+          state="$(mktemp -d)"
+          code=0
+          timeout 30s docker run --rm --name quizzs-forum-probe \
+            -v "$state:/state" quizzs-forum-downloader:local \
+            -p amazon -s aws-certified-cloudops-engineer-associate-soa-c03 \
+            > "$RUNNER_TEMP/forum-probe.log" 2>&1 || code=$?
+          docker stop -t 1 quizzs-forum-probe >/dev/null 2>&1 || true
+          cat "$RUNNER_TEMP/forum-probe.log"
+          printf 'HTTP 429 responses observed: %s\n' "$(grep -c '^HTTP 429' "$RUNNER_TEMP/forum-probe.log" || true)"
+          printf 'Downloader exit: %s\n' "$code"
+          exit "$code"
