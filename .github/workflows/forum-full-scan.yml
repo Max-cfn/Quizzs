@@ -6,7 +6,9 @@ on:
     paths: [.github/workflows/forum-full-scan.yml]
 permissions:
   contents: read
-concurrency: quizzs-examtopics-forum
+concurrency:
+  group: quizzs-examtopics-forum
+  cancel-in-progress: true
 jobs:
   download:
     runs-on: ubuntu-latest
@@ -15,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build -t quizzs-forum-downloader:local downloader
       - name: Verify CloudOps and AIP-C01 with one serial request queue
+        shell: bash
         run: |
           state="$(mktemp -d)"
           for exam in aws-certified-cloudops-engineer-associate-soa-c03 aws-certified-generative-ai-developer-professional-aip-c01; do
