@@ -71,7 +71,11 @@ function parsePage(html,url,base) {
     });
     const links=$('a[href]').map((_,a)=>resolveLink($(a).attr('href'),url)?.href).get()
         .filter(link=>link.startsWith(base) && /^\d+\/?$/.test(link.slice(base.length)));
-    return {questions,links:[...new Set(links)],total};
+    const visible=$('body').clone();
+    visible.find('script,style').remove();
+    const notice=visible.text().replace(/\s+/g,' ').match(/(?:please (?:verify|confirm) (?:that )?you are (?:a )?human|verify you are human|captcha|contributor access required|sign in to continue|log in to continue)/i)?.[0];
+    const pageTitle=$('title').text().trim().slice(0,120);
+    return {questions,links:[...new Set(links)],total,notice:notice||pageTitle};
 }
 
 async function scrape(dir,provider,slug,job,fetchPage=read) {
@@ -93,7 +97,7 @@ async function scrape(dir,provider,slug,job,fetchPage=read) {
         const url=state.pending[0];
         job.stepLabel=unique.size+'/'+total+' questions';
         const page=url===base?first:parsePage(await fetchPage(url),url,base);
-        if (!page.questions.length) throw Error('Page vide ou accès limité');
+        if (!page.questions.length) throw Error('Page sans questions · '+url+' · '+(page.notice||'aucun titre'));
         page.questions.forEach(add);
         state.pages[url]=page.questions;
         state.pending.shift();
