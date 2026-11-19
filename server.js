@@ -1,7 +1,8 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const {scrape,catalog} = require('./scrape');
+const {catalog} = require('./scrape');
+const {downloadForum} = require('./forum');
 const {parseQuestionsMarkdown} = require('./public/parser');
 
 // Prevent crashes from unhandled errors
@@ -273,10 +274,12 @@ app.post('/api/download',(req,res)=>{
         return res.status(400).json({error:'Examen inconnu'});
     const name=provider+'/'+search;
     if(jobs.get(name)?.running) return res.json({status:'started'});
-    const job={name,examName:name,stepLabel:'Lecture de la fiche',running:true,logLines:[]};
+    if ([...jobs.values()].some(job => job.running))
+        return res.status(409).json({error:'Un téléchargement ExamTopics est déjà en cours.'});
+    const job={name,examName:name,stepLabel:'Préparation du downloader',running:true,logLines:[]};
     jobs.set(name,job);
     res.json({status:'started'});
-    scrape(EXAMS_DIR,provider,search,job)
+    downloadForum(EXAMS_DIR,provider,search,job)
         .then(n=>{job.result=n+' questions enregistrées';})
         .catch(err=>{job.result=job.stepLabel+' · '+err.message;})
         .finally(()=>{job.running=false;});
@@ -295,3 +298,4 @@ app.listen(PORT, () => {
     console.log(`  Exams stockés dans: ${EXAMS_DIR}`);
     console.log(`  ${fs.readdirSync(EXAMS_DIR).filter(f => f.endsWith('.md')).length} exam(s) disponible(s)\n`);
 });
+
