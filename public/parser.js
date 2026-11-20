@@ -71,7 +71,8 @@ function parseQuestionBlock(block) {
                 !l.match(/^🗳️$/) &&
                 !l.match(/^\*\*Answer:/i) &&
                 !l.match(/^Question\s*#/i) &&
-                !l.match(/^Topic\s*#/i))
+                !l.match(/^Topic\s*#/i) &&
+                !l.startsWith('Matching options:'))
             .join('\n').trim();
     }
     questionText = questionText.replace(/Suggested Answer:\s*[A-F]+\s*🗳️?\s*/gi, '').trim();
@@ -79,8 +80,14 @@ function parseQuestionBlock(block) {
     const chooseMatch = questionText.match(/\(Choose\s+(\w+)\.?\)/i);
     const words = {one: 1, two: 2, three: 3, four: 4, five: 5};
     const required = chooseMatch ? words[chooseMatch[1].toLowerCase()] || Number(chooseMatch[1]) : 0;
+    const matchingOptions = block.match(/^Matching options:[ \t]*(.+)$/m)?.[1].split(' | ') || [];
     const allowed = new Set(choices.map(choice => choice.letter));
     function validAnswer(value) {
+        if (matchingOptions.length) {
+            return value.length === choices.length &&
+                [...value].every(letter => letter.charCodeAt(0) - 65 >= 0 &&
+                    letter.charCodeAt(0) - 65 < matchingOptions.length) ? value : '';
+        }
         const letters = value.toUpperCase().replace(/[\s,]/g, '').split('');
         if (!letters.length || (required && letters.length !== required) ||
             new Set(letters).size !== letters.length || !letters.every(letter => allowed.has(letter))) return '';
@@ -94,9 +101,12 @@ function parseQuestionBlock(block) {
     const community = communityAnswer(discussions, validAnswer, official);
     const correctAnswer = official || community.answer;
     const answerConfidence = official ? 2 : correctAnswer ? 1 : 0;
-    const expectedCount = required || correctAnswer.length || 1;
+    const expectedCount = matchingOptions.length ? choices.length : required || correctAnswer.length || 1;
     const multiAnswer = expectedCount > 1;
-    const explanation = community.explanation;
+    const answerEnd = answerMatch && answerMatch.index + answerMatch[0].length;
+    const correction = answerEnd ? block.slice(answerEnd).split(/^Comments:/im, 1)[0] : '';
+    const sourceExplanation = correction.match(/^Explanation:[ \t]*([\s\S]*)/im)?.[1].trim() || '';
+    const explanation = sourceExplanation || community.explanation;
 
     // ─── ExamTopics link ──────────────────────────────────────────────
     let link = '';
@@ -128,6 +138,8 @@ function parseQuestionBlock(block) {
         link,
         timestamp,
         explanation,
+        ...(sourceExplanation && { explanationSource: 'provided' }),
+        ...(matchingOptions.length && { matchingOptions }),
         discussions
     };
 }
@@ -199,6 +211,11 @@ function communityAnswer(discussions, validAnswer, official) {
     return {answer, explanation: best?.text || ''};
 }
 
-if (typeof module !== 'undefined') module.exports = {parseQuestionsMarkdown};
+function answerLetters(question) {
+    const letters = (question.correctAnswer || '').split('');
+    return question.matchingOptions?.length ? letters.map((letter, i) => `${i}:${letter}`) : letters;
+}
+
+if (typeof module !== 'undefined') module.exports = {parseQuestionsMarkdown, answerLetters};
 
 
