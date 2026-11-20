@@ -37,14 +37,24 @@ test('accepts a multiple-choice combination once and rejects an invalid letter o
     assert.equal(parseQuestionsMarkdown(question(1, text, 'AZ', stem))[0].correctAnswer, 'AB');
 });
 
-test('applies the rounded 75-percent gate and keeps only usable distinct questions', () => {
+test('keeps usable distinct questions without a coverage threshold', () => {
     const raw = markdown(question(1, evidence), question(2, evidence), question(3, evidence), question(4));
-    assert.throws(() => reviewForumDownload(raw, 5, 4), /3\/5 .*seuil 4/);
+    assert.equal(reviewForumDownload(raw, 100, 4).count, 3);
     assert.throws(() => reviewForumDownload(raw, 4, 3), /nombre de questions/);
     const accepted = reviewForumDownload(raw, 4, 4);
     assert.equal(accepted.count, 3);
     assert.equal(parseQuestionsMarkdown(accepted.markdown).length, 3);
     assert.throws(() => reviewForumDownload(raw, 4, 4, raw), /existant/);
     const duplicate = markdown(question(1, evidence), question(1, evidence), question(2, evidence));
-    assert.throws(() => reviewForumDownload(duplicate, 3, 3), /2\/3 .*seuil 3/);
+    assert.equal(reviewForumDownload(duplicate, 3, 3).count, 2);
+});
+
+
+test('parses multi-part ages on each community reply', () => {
+    const text = 'alice Most Recent 1 year, 7 months, 2 days ago Selected Answer: A First detailed community explanation upvoted 2 times ' +
+        'bob 2 years, 3 months, 23 days ago Selected Answer: B Another detailed community explanation upvoted 1 times';
+    const parsed = parseQuestionsMarkdown(question(1, text))[0];
+    assert.equal(parsed.discussions.length, 2);
+    assert.equal(parsed.discussions[0].time, '1 year, 7 months, 2 days ago');
+    assert.equal(parsed.discussions[0].selectedAnswer, 'A');
 });

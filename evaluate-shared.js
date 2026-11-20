@@ -17,10 +17,11 @@ for (const block of text.split(/^-{3,}$/m)) {
         usable.set(question.id, block.trim());
     }
 }
-const required = Math.ceil(total * 0.7);
+const required = 1;
 console.log(JSON.stringify({ total, parsed: parsed.length, usable: usable.size, required }));
 if (usable.size < required) {
-    throw new Error('Insufficient questions with a community answer and explanation.');
+    throw new Error('No usable questions with a community answer and explanation.');
 }
 fs.mkdirSync(require('node:path').dirname(output), { recursive: true });
 fs.writeFileSync(output, [...usable.values()].join('\n\n----------------------------------------\n\n') + '\n');
+

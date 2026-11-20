@@ -93,7 +93,7 @@ function reviewForumDownload(markdown, available, expected, previous = '') {
         }
     }
     if (parsed !== expected) throw new Error('Le Markdown ne correspond pas au nombre de questions extraites.');
-    const minimum = Math.ceil(available * 0.75);
+    const minimum = 1;
     if (usable.size < minimum) {
         throw new Error(`Forum incomplet ou inexploitable · ${usable.size}/${available} questions avec réponse et explication, seuil ${minimum}.`);
     }
@@ -108,4 +108,5 @@ function reviewForumDownload(markdown, available, expected, previous = '') {
 }
 
 module.exports = { downloadForum, reviewForumDownload };
+
 

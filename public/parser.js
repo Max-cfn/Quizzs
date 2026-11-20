@@ -136,7 +136,7 @@ function parseDiscussions(block) {
     const text = block.match(/^Comments:[ \t]*([\s\S]*)$/im)?.[1];
     if (!text) return [];
     const discussions = [];
-    const relative = String.raw`(?:\d+|an?)\s+\w+(?:,\s*(?:\d+|an?)\s+\w+)?\s+ago|just now`;
+    const relative = String.raw`(?:\d+|an?)\s+\w+(?:,\s*(?:\d+|an?)\s+\w+)*\s+ago|just now`;
     // Split at comment headers, so a reply without votes cannot inherit the next reply's votes.
     const header = new RegExp(String.raw`(?:^|\s)([\w.-]+)\s+(?:(Highly Voted|Most Recent)\s+)?(${relative})(?=\s|$)`, 'gi');
     const matches = [...text.matchAll(header)];
@@ -200,4 +200,5 @@ function communityAnswer(discussions, validAnswer, official) {
 }
 
 if (typeof module !== 'undefined') module.exports = {parseQuestionsMarkdown};
+
 

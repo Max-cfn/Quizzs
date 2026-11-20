@@ -867,7 +867,7 @@
         
         let html = `<div class="feedback-title">${isCorrect ? '✓ Correct !' : '✗ Incorrect'}</div>`;
         if (!isCorrect && q.correctAnswer) {
-            html += `<div class="feedback-explanation">La bonne réponse est <strong>${q.correctAnswer}</strong>`;
+            html += `<div class="feedback-explanation">${q.answerConfidence === 1 ? 'Réponse retenue par la communauté' : 'Réponse indiquée'} : <strong>${q.correctAnswer}</strong>`;
             if (q.multiAnswer) {
                 const correctTexts = correctLetters.map(l => {
                     const c = q.choices.find(ch => ch.letter === l);
@@ -1601,3 +1601,4 @@
     }
 
 })();
+
