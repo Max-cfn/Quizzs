@@ -36,9 +36,11 @@
     let activeLibrary = 'personal';
     async function loadLibrary() {
         const container = document.getElementById('examLibrary');
+        const library = activeLibrary;
         try {
-            const res = await fetch('/api/exams?library=' + activeLibrary);
+            const res = await fetch('/api/exams?library=' + library);
             const data = await res.json();
+            if (activeLibrary !== library) return;
             
             if (data.exams.length === 0) {
                 container.innerHTML = `
@@ -50,27 +52,25 @@
                 return;
             }
 
-            // Render grouped by provider
-            let html = '';
-            for (const group of data.grouped) {
-                html += `<div class="provider-group">
-                    <h3 class="provider-title">${group.name} <span class="provider-count">(${group.exams.length})</span></h3>
-                    <div class="provider-exams">`;
-                for (const exam of group.exams) {
-                    html += `
-                        <div class="exam-card" data-filename="${exam.filename}">
-                            <div class="exam-card-title">${escapeHTML(exam.name)}${exam.isCustom ? ' <span class="custom-badge">✎</span>' : ''}</div>
-                            <div class="exam-card-meta">
-                                <span>📝 ${exam.questions} questions</span>
-                                <span>📅 ${new Date(exam.downloadedAt).toLocaleDateString('fr-FR')}</span>
-                            </div>
-                            ${activeLibrary === 'personal' ? `<button class="exam-card-rename" data-filename="${exam.filename}" data-name="${escapeHTML(exam.name)}" title="Renommer">✏️</button>
-                            <button class="exam-card-delete" data-filename="${exam.filename}" title="Supprimer">🗑️</button>` : ''}
-                        </div>`;
-                }
-                html += `</div></div>`;
+            if (library === 'shared') {
+                const sections = [
+                    { source: 'pdf', label: 'Examens importés depuis des PDF' },
+                    { source: 'community', label: 'Questions communautaires' }
+                ];
+                container.innerHTML = sections.map(({ source, label }) => {
+                    const groups = data.grouped.map(group => ({
+                        ...group,
+                        exams: group.exams.filter(exam => exam.source === source)
+                    })).filter(group => group.exams.length);
+                    if (!groups.length) return '';
+                    return `<section class="shared-library-section" aria-labelledby="shared-${source}">
+                        <h3 id="shared-${source}">${label}</h3>
+                        ${renderProviderGroups(groups, false)}
+                    </section>`;
+                }).join('');
+            } else {
+                container.innerHTML = renderProviderGroups(data.grouped, true);
             }
-            container.innerHTML = html;
 
             // Bind card clicks
             container.querySelectorAll('.exam-card').forEach(card => {
@@ -112,6 +112,30 @@
         } catch (err) {
             container.innerHTML = `<div class="empty-library"><p>Erreur de chargement: ${err.message}</p></div>`;
         }
+    }
+
+    function renderProviderGroups(groups, personal) {
+        const heading = personal ? 'h3' : 'h4';
+        let html = '';
+        for (const group of groups) {
+            html += `<div class="provider-group">
+                <${heading} class="provider-title">${group.name} <span class="provider-count">(${group.exams.length})</span></${heading}>
+                <div class="provider-exams">`;
+            for (const exam of group.exams) {
+                html += `
+                    <div class="exam-card" data-filename="${exam.filename}">
+                        <div class="exam-card-title">${escapeHTML(exam.name)}${exam.isCustom ? ' <span class="custom-badge">✎</span>' : ''}</div>
+                        <div class="exam-card-meta">
+                            <span>📝 ${exam.questions} questions</span>
+                            <span>📅 ${new Date(exam.downloadedAt).toLocaleDateString('fr-FR')}</span>
+                        </div>
+                        ${personal ? `<button class="exam-card-rename" data-filename="${exam.filename}" data-name="${escapeHTML(exam.name)}" title="Renommer">✏️</button>
+                        <button class="exam-card-delete" data-filename="${exam.filename}" title="Supprimer">🗑️</button>` : ''}
+                    </div>`;
+            }
+            html += `</div></div>`;
+        }
+        return html;
     }
 
     document.querySelectorAll('[data-library]').forEach(button => {
