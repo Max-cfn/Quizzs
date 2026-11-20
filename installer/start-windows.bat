@@ -69,7 +69,7 @@ if not exist "%APP_DIR%\.git" (
 cd /d "%APP_DIR%"
 
 :: 4. Install dependencies
-if not exist "%APP_DIR%\node_modules" (
+if not exist "%APP_DIR%\node_modules\cheerio" (
     echo   [..] Installation des dependances...
     call npm install --silent
 )

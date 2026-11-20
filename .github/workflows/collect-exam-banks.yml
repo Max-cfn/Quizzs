@@ -1,0 +1,52 @@
+name: Collect and evaluate exam banks
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/validated-exam-downloads]
+    paths: [.github/workflows/collect-exam-banks.yml]
+permissions:
+  contents: read
+concurrency:
+  group: quizzs-examtopics-forum
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: docker build -t quizzs-forum-downloader:local downloader
+      - name: Download exams with a shared sequential queue
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/quizzs-state" "$RUNNER_TEMP/quizzs-output"
+          for entry in \
+            amazon:aws-certified-security-specialty-scs-c03 \
+            amazon:aws-certified-generative-ai-developer-professional-aip-c01 \
+            amazon:aws-certified-devops-engineer-professional-dop-c02 \
+            hashicorp:terraform-associate-004 \
+            nvidia:nca-aiio \
+            anthropic:cca-f; do
+            provider="${entry%%:*}"
+            exam="${entry#*:}"
+            echo "Collecting $provider / $exam"
+            docker run --rm --user "$(id -u):$(id -g)" -v "$RUNNER_TEMP/quizzs-state:/state" \
+              quizzs-forum-downloader:local -p "$provider" -s "$exam" -o "/state/$provider-$exam.md" \
+              > "$RUNNER_TEMP/quizzs-output/$provider-$exam.log" 2>&1 || true
+            tail -n 5 "$RUNNER_TEMP/quizzs-output/$provider-$exam.log"
+            sleep 6
+          done
+      - name: Preserve private checkpoint and results for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collected-exams
+          path: |
+            ${{ runner.temp }}/quizzs-state/
+            ${{ runner.temp }}/quizzs-output/
+          include-hidden-files: true
+          retention-days: 1

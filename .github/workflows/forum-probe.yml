@@ -1,0 +1,60 @@
+name: Probe ExamTopics forum
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/validated-exam-downloads]
+    paths: [.github/workflows/forum-probe.yml]
+permissions:
+  contents: read
+concurrency: quizzs-examtopics-forum
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: thatonecodes/examtopics-downloader
+          ref: cc064ad775d364706ba550909c83d853d830e297
+          path: upstream
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream/go.mod
+          cache-dependency-path: upstream/go.sum
+      - name: Measure publicly returned community replies
+        shell: bash
+        run: |
+          git -C upstream apply ../downloader/downloader.patch
+          cp downloader/forum.go upstream/internal/fetch/quizzs_forum.go
+          cd upstream
+          cat > internal/fetch/live_probe_test.go <<'GO'
+          package fetch
+          import (
+            "examtopics-downloader/internal/utils"
+            "fmt"
+            "path/filepath"
+            "regexp"
+            "strings"
+            "testing"
+            "time"
+          )
+          func TestLiveDiscussionProbe(t *testing.T) {
+            h:=forumHTTP{client:utils.NewHTTPClient(), interval:3*time.Second, retryDelay:30*time.Second,cooldownPath:filepath.Join(t.TempDir(),"cooldown.json")}
+            for _,path:=range []string{
+              "/discussions/amazon/view/424481-exam-aws-certified-cloudops-engineer-associate-soa-c03-topic-1-question-165-discussion/",
+              "/discussions/amazon/view/384230-exam-aws-certified-generative-ai-developer-professional-aip-c01-topic-1-question-15-discussion/",
+            } {
+              link:=examTopicsOrigin+path
+              doc,err:=h.page(link)
+              if err!=nil { t.Fatal(err) }
+              item:=parseForumQuestion(doc,link)
+              body:=strings.ToLower(strings.Join(strings.Fields(doc.Find("body").Text())," "))
+              selection:=doc.Find(".discussion-container")
+              commentBody:=selection.Text()
+              fmt.Printf("probe %s · choices=%d · reply containers=%d · reply nodes=%d · reply text bytes=%d · selected answer markers=%d · vote count markers=%d · relative timestamps=%d\n", path,len(item.Questions),selection.Length(),doc.Find(".comment-container, .comment-content").Length(),len(strings.TrimSpace(commentBody)),len(regexp.MustCompile("(?i)selected answer:").FindAllStringIndex(commentBody,-1)),len(regexp.MustCompile("(?i)upvoted").FindAllStringIndex(commentBody,-1)),len(regexp.MustCompile("(?i)ago").FindAllStringIndex(commentBody,-1)))
+              fmt.Printf("upstream saved reply bytes=%d · page answer markers=%d · comment markup=%d\n", len(item.Comments),strings.Count(strings.ToLower(body),"selected answer:"),doc.Find("[data-comment-id], [data-reply-id], .comment-container").Length())
+            }
+          }
+          GO
+          go test -count=1 -run TestLiveDiscussionProbe -v ./internal/fetch

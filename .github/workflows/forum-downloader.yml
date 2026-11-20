@@ -1,0 +1,42 @@
+name: Forum downloader tests
+on:
+  push:
+    paths:
+      - downloader/**
+      - forum.js
+      - server.js
+      - .github/workflows/forum-downloader.yml
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: thatonecodes/examtopics-downloader
+          ref: cc064ad775d364706ba550909c83d853d830e297
+          path: upstream
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream/go.mod
+          cache-dependency-path: upstream/go.sum
+      - name: Test rate limits, resume and complete Markdown output
+        run: |
+          git -C upstream apply ../downloader/downloader.patch
+          cp downloader/forum.go upstream/internal/fetch/quizzs_forum.go
+          cp downloader/forum_test.go upstream/internal/fetch/quizzs_forum_test.go
+          mkdir -p upstream/cmd/quizzs
+          cp downloader/main.go upstream/cmd/quizzs/main.go
+          cd upstream
+          go test -v ./internal/fetch ./cmd/quizzs
+      - name: Build the image used by Quizzs
+        run: docker build -t quizzs-forum-downloader:local downloader
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm test

@@ -32,8 +32,8 @@ function parseQuestionBlock(block) {
     // ─── Question & topic numbers (both formats) ──────────────────────
     const questionNumMatch =
         block.match(/Question\s*#:\s*(\d+)/i) ||      // legacy
-        block.match(/question\s*#\s*(\d+)/i);          // new "question #1"
-    const topicNumMatch = block.match(/Topic\s*#:\s*(\d+)/i);
+        block.match(/question\s*#\s*(\d+)/i) || block.match(/^##[^\n]*\bquestion\s+(\d+)\s+discussion\b/im);          // new "question #1"
+    const topicNumMatch = block.match(/Topic\s*#:\s*(\d+)/i) || block.match(/^##[^\n]*\btopic\s+(\d+)\s+question\b/im);
     const headerMatch = block.match(/##\s*(.+?)(?:\n|$)/);
 
     // ─── Extract choices (both formats) ───────────────────────────────
@@ -42,6 +42,7 @@ function parseQuestionBlock(block) {
     let firstChoiceIdx = -1;
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
+        if (/^(?:\*\*Answer:|Comments:)/i.test(line)) break;
         const m = line.match(/^\*\*([A-F])[.:]?\*\*[:.]?\s*(.+)/) ||  // **A:** **A.** **A**
                   line.match(/^([A-F])[.:]\s+(.+)/);                   // A. or A:
         if (m) {
@@ -75,70 +76,27 @@ function parseQuestionBlock(block) {
     }
     questionText = questionText.replace(/Suggested Answer:\s*[A-F]+\s*🗳️?\s*/gi, '').trim();
 
-    // ─── Correct answer ───────────────────────────────────────────────
-    let correctAnswer = '';
-    let answerConfidence = 0; // 0=unknown, 1=low(community few votes), 2=high(official or many votes)
-
-    const answerMatch =
-        block.match(/\*\*Answer:\s*([A-F]+)\*\*/i) ||
-        block.match(/Suggested Answer:\s*([A-F]+)/i);
-    if (answerMatch) {
-        correctAnswer = answerMatch[1].toUpperCase();
-        answerConfidence = 2; // official
-    }
-
-    // Fallback: community consensus - the answer whose single most-upvoted comment wins
-    if (!correctAnswer) {
-        // Track the MAX upvotes of any single comment per answer (ExamTopics convention:
-        // the "Highly Voted" comment indicates the answer, not the sum across comments)
-        const maxVotes = {};   // answer -> highest single-comment upvotes
-        const commentCount = {}; // answer -> number of comments (tiebreaker)
-        const legacyVotes = [...block.matchAll(/Selected Answer:\s*([A-F]+)[^]*?upvoted\s+(\d+)\s+times/gi)];
-        for (const m of legacyVotes) {
-            const ans = m[1].toUpperCase();
-            const v = parseInt(m[2]);
-            maxVotes[ans] = Math.max(maxVotes[ans] || 0, v);
-            commentCount[ans] = (commentCount[ans] || 0) + 1;
-        }
-
-        // New format without vote counts: just count occurrences
-        if (Object.keys(maxVotes).length === 0) {
-            const simpleSelections = [...block.matchAll(/Selected Answer:\s*([A-F]+)/gi)];
-            for (const m of simpleSelections) {
-                const ans = m[1].toUpperCase();
-                commentCount[ans] = (commentCount[ans] || 0) + 1;
-                maxVotes[ans] = 0;
-            }
-        }
-
-        if (Object.keys(maxVotes).length > 0) {
-            // Sort by: highest single-comment upvotes, then by comment count
-            const sorted = Object.keys(maxVotes).sort((a, b) => {
-                if (maxVotes[b] !== maxVotes[a]) return maxVotes[b] - maxVotes[a];
-                return (commentCount[b] || 0) - (commentCount[a] || 0);
-            });
-            correctAnswer = sorted[0];
-            const topVotes = maxVotes[correctAnswer];
-            answerConfidence = topVotes >= 5 ? 2 : 1;
-        }
-
-        if (!correctAnswer) {
-            const m = block.match(/(?:correct answer|the answer)\s*(?:is|should be|:)\s*([A-F]+)\b/i);
-            if (m) { correctAnswer = m[1].toUpperCase(); answerConfidence = 1; }
-        }
-    }
-
-    // ─── Multi-answer detection ───────────────────────────────────────
-    // 1) From the question text: "(Choose two.)" "(Choose three.)" etc.
     const chooseMatch = questionText.match(/\(Choose\s+(\w+)\.?\)/i);
-    let expectedCount = 1;
-    if (chooseMatch) {
-        const words = { two: 2, three: 3, four: 4, five: 5, '2': 2, '3': 3, '4': 4 };
-        expectedCount = words[chooseMatch[1].toLowerCase()] || parseInt(chooseMatch[1]) || 1;
-    } else if (correctAnswer.length > 1) {
-        expectedCount = correctAnswer.length;
+    const words = {one: 1, two: 2, three: 3, four: 4, five: 5};
+    const required = chooseMatch ? words[chooseMatch[1].toLowerCase()] || Number(chooseMatch[1]) : 0;
+    const allowed = new Set(choices.map(choice => choice.letter));
+    function validAnswer(value) {
+        const letters = value.toUpperCase().replace(/[\s,]/g, '').split('');
+        if (!letters.length || (required && letters.length !== required) ||
+            new Set(letters).size !== letters.length || !letters.every(letter => allowed.has(letter))) return '';
+        return letters.sort().join('');
     }
+
+    const answerMatch = block.match(/^\*\*Answer:[ \t]*([A-F]+)\*\*\s*$/im) ||
+        block.match(/^Suggested Answer:[ \t]*([A-F]+)\b/im);
+    const official = validAnswer(answerMatch?.[1] || '');
+    const discussions = parseDiscussions(block);
+    const community = communityAnswer(discussions, validAnswer, official);
+    const correctAnswer = official || community.answer;
+    const answerConfidence = official ? 2 : correctAnswer ? 1 : 0;
+    const expectedCount = required || correctAnswer.length || 1;
     const multiAnswer = expectedCount > 1;
+    const explanation = community.explanation;
 
     // ─── ExamTopics link ──────────────────────────────────────────────
     let link = '';
@@ -151,60 +109,6 @@ function parseQuestionBlock(block) {
     let timestamp = '';
     const tsMatch = block.match(/\*\*Timestamp:\s*(.+?)\*\*/);
     if (tsMatch) timestamp = tsMatch[1].trim();
-
-    // ─── Discussions / comments ───────────────────────────────────────
-    // Chaque commentaire ExamTopics suit toujours le même gabarit texte :
-    //   USER [Highly Voted|Most Recent] TIME_AGO [Selected Answer: X] TEXT upvoted N times
-    // séparés par "...". On les capture dans l'ordre d'apparition du fichier
-    // (le plus récent en premier, tel que fourni par ExamTopics) sans tronquer
-    // le texte, pour permettre un affichage complet de la conversation.
-    let discussions = [];
-    let explanation = '';
-
-    const commentsMatch = block.match(/Comments:\s*([\s\S]+?)(?=\n-{3,}|$)/i);
-    if (commentsMatch) {
-        const txt = commentsMatch[1];
-
-        const commentRegex = /(\w+)\s+(Highly Voted|Most Recent)?\s*(\d+\s+\w+(?:,\s*\d+\s+\w+)?\s+ago)\s*(?:Selected Answer:\s*([A-F]+))?\s*([\s\S]*?)upvoted\s+(\d+)\s+times/gi;
-        let m;
-        while ((m = commentRegex.exec(txt)) !== null) {
-            discussions.push({
-                user: m[1],
-                badge: m[2] || '',                 // "Highly Voted" | "Most Recent" | ''
-                time: m[3].trim(),
-                selectedAnswer: m[4] ? m[4].toUpperCase() : '',
-                text: m[5].trim(),                 // texte complet, non tronqué
-                votes: parseInt(m[6])
-            });
-        }
-
-        // Repli : format "[user] Selected Answer: C texte" (jamais vu dans les
-        // fichiers réels observés, mais gardé au cas où le downloader change).
-        if (discussions.length === 0) {
-            const newComments = [...txt.matchAll(/\[([^\]]+)\]\s*(?:Selected Answer:\s*([A-F]+))?\s*([^\[]*)/g)];
-            for (const c of newComments) {
-                const body = (c[3] || '').trim();
-                if (body.length > 10 || c[2]) {
-                    discussions.push({
-                        user: c[1],
-                        badge: '',
-                        time: '',
-                        selectedAnswer: c[2] ? c[2].toUpperCase() : '',
-                        text: body,
-                        votes: 0
-                    });
-                }
-            }
-        }
-
-        // L'explication par défaut (affichée sans dérouler la conversation)
-        // est le commentaire "Highly Voted" s'il existe, sinon le plus voté.
-        if (discussions.length > 0) {
-            const highly = discussions.find(d => d.badge === 'Highly Voted');
-            const best = highly || [...discussions].sort((a, b) => (b.votes || 0) - (a.votes || 0))[0];
-            explanation = best.text;
-        }
-    }
 
     const topicNum = topicNumMatch ? topicNumMatch[1] : '1';
     const questionNum = questionNumMatch ? questionNumMatch[1] : '?';
@@ -227,3 +131,74 @@ function parseQuestionBlock(block) {
         discussions
     };
 }
+
+function parseDiscussions(block) {
+    const text = block.match(/^Comments:[ \t]*([\s\S]*)$/im)?.[1];
+    if (!text) return [];
+    const discussions = [];
+    const relative = String.raw`(?:\d+|an?)\s+\w+(?:,\s*(?:\d+|an?)\s+\w+)*\s+ago|just now`;
+    // Split at comment headers, so a reply without votes cannot inherit the next reply's votes.
+    const header = new RegExp(String.raw`(?:^|\s)([\w.-]+)\s+(?:(Highly Voted|Most Recent)\s+)?(${relative})(?=\s|$)`, 'gi');
+    const matches = [...text.matchAll(header)];
+    for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
+        const body = text.slice(match.index + match[0].length, matches[i + 1]?.index).trim();
+        const selected = body.match(/^Selected Answer:\s*([A-F]+(?:\s*,\s*[A-F]+)*)\b/i);
+        const votes = body.match(/\s*upvoted\s+(\d+)\s+times?\s*$/i);
+        discussions.push({
+            user: match[1], badge: match[2] || '', time: match[3],
+            selectedAnswer: selected?.[1].toUpperCase() || '',
+            text: body.slice(selected?.[0].length || 0, votes?.index).trim(),
+            votes: Number(votes?.[1] || 0)
+        });
+    }
+    if (discussions.length) return discussions;
+    const headers = [...text.matchAll(/(?:^|\s)\[([\w.-]+)\]\s*(?:Selected Answer:\s*([A-F]+(?:\s*,\s*[A-F]+)*)\b)?/gi)];
+    return headers.map((match, i) => ({
+        user: match[1], time: '', badge: '', votes: 0,
+        selectedAnswer: match[2]?.toUpperCase() || '',
+        text: text.slice(match.index + match[0].length, headers[i + 1]?.index).trim()
+    }));
+}
+
+function commentAgeDays(time) {
+    const days = {second: 1 / 86400, minute: 1 / 1440, hour: 1 / 24, day: 1, week: 7, month: 30, year: 365};
+    if (/^just now$/i.test(time)) return 0;
+    let age = 0;
+    let known = false;
+    for (const match of time.matchAll(/(\d+|an?)\s+(second|minute|hour|day|week|month|year)s?\b/gi)) {
+        known = true;
+        age += (Number(match[1]) || 1) * days[match[2].toLowerCase()];
+    }
+    return known ? age : Infinity;
+}
+
+function communityAnswer(discussions, validAnswer, official) {
+    const byAuthor = new Map();
+    for (const reply of discussions) {
+        const declared = reply.text.match(/^(?:(?:the )?correct answer is|answer:|option)\s+([A-F]+(?:\s*,\s*[A-F]+)*)\b/i);
+        const answer = validAnswer(reply.selectedAnswer || declared?.[1] || '');
+        if (!answer) continue;
+        const age = commentAgeDays(reply.time);
+        const weight = (1 + Math.log2(1 + reply.votes)) * (0.5 + 0.5 / (1 + age / 180));
+        const author = reply.user.toLowerCase();
+        const previous = byAuthor.get(author);
+        if (!previous || age < previous.age || (age === previous.age && weight > previous.weight)) {
+            byAuthor.set(author, {answer, weight, age, text: reply.text});
+        }
+    }
+    const scores = new Map();
+    for (const reply of byAuthor.values()) {
+        scores.set(reply.answer, (scores.get(reply.answer) || 0) + reply.weight);
+    }
+    const ranked = [...scores].sort((a, b) => b[1] - a[1]);
+    const answer = official || (ranked[0] && (!ranked[1] || ranked[0][1] - ranked[1][1] > 1e-9) ? ranked[0][0] : '');
+    const best = [...byAuthor.values()]
+        .filter(reply => reply.answer === answer && reply.text.trim().split(/\s+/).length >= 5)
+        .sort((a, b) => b.weight - a.weight)[0];
+    return {answer, explanation: best?.text || ''};
+}
+
+if (typeof module !== 'undefined') module.exports = {parseQuestionsMarkdown};
+
+

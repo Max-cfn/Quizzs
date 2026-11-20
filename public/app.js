@@ -33,10 +33,11 @@
     }
 
     // ─── Home: Load Exam Library ─────────────────────────────────────────
+    let activeLibrary = 'personal';
     async function loadLibrary() {
         const container = document.getElementById('examLibrary');
         try {
-            const res = await fetch('/api/exams');
+            const res = await fetch('/api/exams?library=' + activeLibrary);
             const data = await res.json();
             
             if (data.exams.length === 0) {
@@ -63,8 +64,8 @@
                                 <span>📝 ${exam.questions} questions</span>
                                 <span>📅 ${new Date(exam.downloadedAt).toLocaleDateString('fr-FR')}</span>
                             </div>
-                            <button class="exam-card-rename" data-filename="${exam.filename}" data-name="${escapeHTML(exam.name)}" title="Renommer">✏️</button>
-                            <button class="exam-card-delete" data-filename="${exam.filename}" title="Supprimer">🗑️</button>
+                            ${activeLibrary === 'personal' ? `<button class="exam-card-rename" data-filename="${exam.filename}" data-name="${escapeHTML(exam.name)}" title="Renommer">✏️</button>
+                            <button class="exam-card-delete" data-filename="${exam.filename}" title="Supprimer">🗑️</button>` : ''}
                         </div>`;
                 }
                 html += `</div></div>`;
@@ -113,9 +114,19 @@
         }
     }
 
+    document.querySelectorAll('[data-library]').forEach(button => {
+        button.addEventListener('click', () => {
+            activeLibrary = button.dataset.library;
+            document.querySelectorAll('[data-library]').forEach(tab => {
+                tab.setAttribute('aria-pressed', String(tab === button));
+            });
+            loadLibrary();
+        });
+    });
+
     async function loadExam(filename) {
         try {
-            const res = await fetch(`/api/exams/${filename}`);
+            const res = await fetch(`/api/exams/${encodeURIComponent(filename)}?library=${activeLibrary}`);
             const data = await res.json();
             allQuestions = parseQuestionsMarkdown(data.content);
             
@@ -221,23 +232,23 @@
             const data = await res.json();
             
             if (data.error) {
-                examSelect.innerHTML = '<option value="">❌ Erreur - Docker non disponible</option>';
-                hint.textContent = '⚠️ Lancez Docker Desktop puis réessayez';
+                examSelect.innerHTML = '<option value="">❌ Catalogue indisponible</option>';
+                hint.textContent = data.error;
                 return;
             }
             
             examSelect.innerHTML = '<option value="">— Choisissez un examen —</option>' +
                 data.exams.map(e => `<option value="${e.slug}">${e.name}</option>`).join('');
             hint.textContent = `✓ ${data.exams.length} exams disponibles`;
-            updateDownloadCommand();
+            
         } catch (err) {
             examSelect.innerHTML = '<option value="">❌ Erreur de chargement</option>';
-            hint.textContent = '⚠️ Vérifiez que Docker est démarré';
+            hint.textContent = '⚠️ Vérifiez la connexion à ExamTopics';
         }
     }
 
     document.getElementById('dlExamSelect').addEventListener('change', async () => {
-        updateDownloadCommand();
+        
         const provider = document.getElementById('dlProvider').value;
         const slug = document.getElementById('dlExamSelect').value;
         const infoBox = document.getElementById('dlExamInfo');
@@ -269,24 +280,6 @@
         } catch {
             infoText.innerHTML = '⚠️ Impossible de récupérer les infos';
         }
-    });
-
-    function updateDownloadCommand() {
-        const provider = document.getElementById('dlProvider').value || 'cisco';
-        const search = document.getElementById('dlExamSelect').value || '200-301';
-        const safeName = `${provider}_${search.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        document.getElementById('dlCommand').textContent = 
-            `docker run --name examtopics-dl ghcr.io/thatonecodes/examtopics-downloader:latest -p ${provider} -s "${search}" -c -save-links -o output.md && docker cp examtopics-dl:/app/output.md ./exams/${safeName}.md && docker rm examtopics-dl`;
-    }
-
-    // Copy command button
-    document.getElementById('btnCopyCmd').addEventListener('click', () => {
-        const cmd = document.getElementById('dlCommand').textContent;
-        navigator.clipboard.writeText(cmd).then(() => {
-            const btn = document.getElementById('btnCopyCmd');
-            btn.textContent = '✓';
-            setTimeout(() => btn.textContent = '📋', 1500);
-        });
     });
 
     document.getElementById('btnStartDownload').addEventListener('click', async () => {
@@ -874,7 +867,7 @@
         
         let html = `<div class="feedback-title">${isCorrect ? '✓ Correct !' : '✗ Incorrect'}</div>`;
         if (!isCorrect && q.correctAnswer) {
-            html += `<div class="feedback-explanation">La bonne réponse est <strong>${q.correctAnswer}</strong>`;
+            html += `<div class="feedback-explanation">${q.answerConfidence === 1 ? 'Réponse retenue par la communauté' : 'Réponse indiquée'} : <strong>${q.correctAnswer}</strong>`;
             if (q.multiAnswer) {
                 const correctTexts = correctLetters.map(l => {
                     const c = q.choices.find(ch => ch.letter === l);
@@ -1524,7 +1517,13 @@
             const data = await res.json();
 
             if (!data.downloading || !data.downloads || data.downloads.length === 0) {
-                // Grace period: container may still be spinning up
+                if (data.results?.length) {
+                    container.textContent=data.results.join(' · ');
+                    stopHomePolling();
+                    loadLibrary();
+                    return;
+                }
+                // Await the first status update
                 if (downloadGracePeriod > 0) {
                     downloadGracePeriod--;
                     return; // keep the "starting" banner, keep polling
@@ -1561,7 +1560,7 @@
                 html += `<div class="active-download">
                     <div class="active-download-header">
                         <h3>⏳ ${escapeHTML(dl.examName || 'Téléchargement')} — ${escapeHTML(dl.stepLabel)}</h3>
-                        <span class="dl-step-indicator">Étape ${dl.step}/3</span>
+                        <span class="dl-step-indicator">Collecte</span>
                     </div>
                     <div class="ad-progress-row">
                         <span>${detail} pages${extra}</span>
@@ -1586,7 +1585,7 @@
             </div>
             <div class="ad-progress-row"><span>...</span><span>0%</span></div>
             <div class="ad-bar"><div class="ad-bar-fill" style="width:0%"></div></div>
-            <div class="ad-logs">▸ Lancement du container Docker...</div>
+            <div class="ad-logs">▸ Connexion à ExamTopics...</div>
         </div>`;
         // Grace period of ~10 cycles (20s) for container to spin up
         downloadGracePeriod = 10;
@@ -1602,3 +1601,4 @@
     }
 
 })();
+

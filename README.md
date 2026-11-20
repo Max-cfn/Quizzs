@@ -95,3 +95,8 @@ et une réponse combinée (`**Answer: AC**`).
 ├── start.sh                # Lanceur alternatif (terminal)
 └── README.md
 ```
+
+## Télécharger depuis le forum ExamTopics
+
+Le téléchargement requiert Docker. Quizzs construit le downloader Go `thatonecodes` à partir d’une révision fixe au premier lancement. Un seul téléchargement tourne à la fois. Les pages déjà lues sont conservées dans `exams/.forum-state/` et l’index d’un fournisseur peut servir à plusieurs examens. Après un arrêt, relancez le même téléchargement pour reprendre. Le fichier Markdown est publié quand le nombre de questions distinctes et lisibles correspond au total annoncé.
+

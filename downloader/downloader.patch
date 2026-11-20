@@ -1,0 +1,23 @@
+diff --git a/internal/fetch/scraper.go b/internal/fetch/scraper.go
+--- a/internal/fetch/scraper.go
++++ b/internal/fetch/scraper.go
+@@ -23,6 +23,10 @@ func getDataFromLink(link string) *models.QuestionData {
+ 		log.Printf("Failed parsing HTML data from link: %v", err)
+ 		return nil
+ 	}
++	return parseDiscussion(doc, link)
++}
++
++func parseDiscussion(doc *goquery.Document, link string) *models.QuestionData {
+ 
+ 	var allQuestions []string
+ 	doc.Find("li.multi-choice-item").Each(func(i int, s *goquery.Selection) {
+@@ -63,7 +67,7 @@ func getDataFromLink(link string) *models.QuestionData {
+ 	if answer == "" {
+ 		answerText := strings.TrimSpace(doc.Find(".correct-answer").Text())
+ 		if len(answerText) > 0 {
+-			answer = string(strings.ReplaceAll(strings.ReplaceAll(answerText, " ", ""), "\n", "")[0])
++			answer = strings.Join(strings.Fields(answerText), "")
+ 		}
+ 	}
+ 
