@@ -106,7 +106,6 @@ function parseQuestionBlock(block) {
     const answerEnd = answerMatch && answerMatch.index + answerMatch[0].length;
     const correction = answerEnd ? block.slice(answerEnd).split(/^Comments:/im, 1)[0] : '';
     const sourceExplanation = correction.match(/^Explanation:[ \t]*([\s\S]*)/im)?.[1].trim() || '';
-    const explanation = sourceExplanation || community.explanation;
 
     // ─── ExamTopics link ──────────────────────────────────────────────
     let link = '';
@@ -123,6 +122,9 @@ function parseQuestionBlock(block) {
     const topicNum = topicNumMatch ? topicNumMatch[1] : '1';
     const questionNum = questionNumMatch ? questionNumMatch[1] : '?';
     const title = headerMatch ? headerMatch[1].trim() : `Question ${questionNum}`;
+    const explanation = sourceExplanation && /^Exam Claude Certified Architect\b/i.test(title)
+        ? markCorrectionLabels(sourceExplanation)
+        : sourceExplanation || community.explanation;
 
     return {
         id: `t${topicNum}q${questionNum}`,
@@ -142,6 +144,14 @@ function parseQuestionBlock(block) {
         ...(matchingOptions.length && { matchingOptions }),
         discussions
     };
+}
+
+function markCorrectionLabels(explanation) {
+    // The PDF places verdicts on their own line, after a choice, or after a sentence.
+    const labels = /(^[ \t]*|[.!?][ \t]+|\b[A-F][.:][ \t]+)(?:[✅❌✔✘✓✗]\uFE0F?[ \t]*)?(Correct|Incorrect)(?=$|[.,!:–—]|[ \t]+(?:[-–—A-Z]|[Aa]nswers?\b))/gm;
+    const trailingLabels = /(?<![✅❌✔✘✓✗\uFE0F \t])([ \t]+)(?:[✅❌✔✘✓✗]\uFE0F?[ \t]*)?(Correct|Incorrect)(?=[.!:]?[ \t]*$)/gm;
+    const mark = (_, prefix, label) => `${prefix}${label === 'Correct' ? '✅' : '❌'} ${label}`;
+    return explanation.replace(labels, mark).replace(trailingLabels, mark);
 }
 
 function parseDiscussions(block) {

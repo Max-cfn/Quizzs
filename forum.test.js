@@ -11,6 +11,29 @@ function question(number, comments = '', official = '', stem = 'Which service de
 const evidence = 'reader 2 months ago Selected Answer: B A supported explanation with the technical details upvoted 2 times';
 const markdown = (...parts) => parts.join('\n\n----------------------------------------\n\n');
 
+test('marks Claude PDF correction labels without duplicating icons or changing prose', () => {
+    const explanation = [
+        'Incorrect',
+        'This can produce incorrect results.',
+        'B. Correct — explanation follows.',
+        'C. The third option is incomplete. ❌ Incorrect.',
+        'D. Reuse the old state Incorrect.',
+        'Correct answers: B.'
+    ].join('\n');
+    const bank = title => question(1, '', 'B').replace('## Example', `## Exam ${title}`)
+        .replace('Comments: ', `Explanation:\n${explanation}`);
+    for (const edition of ['Foundations (CCA-F)', 'Professional (CCAR-P)']) {
+        const [result] = parseQuestionsMarkdown(bank(`Claude Certified Architect ${edition} (PDF)`));
+        assert.equal(result.correctAnswer, 'B');
+        assert.equal(result.explanation, explanation
+            .replace(/^Incorrect/, '❌ Incorrect')
+            .replace('B. Correct', 'B. ✅ Correct')
+            .replace('state Incorrect.', 'state ❌ Incorrect.')
+            .replace('Correct answers:', '✅ Correct answers:'));
+    }
+    assert.equal(parseQuestionsMarkdown(bank('AWS AIP-C01 (PDF)'))[0].explanation, explanation);
+});
+
 test('aggregates unique authors with votes and recency and picks supporting evidence', () => {
     const text = 'old-user Highly Voted 3 years ago Selected Answer: A Older rationale for the first answer upvoted 4 times ' +
         'new-user 2 days ago Selected Answer: B Recent technical reason for the correct second answer upvoted 1 time ' +
