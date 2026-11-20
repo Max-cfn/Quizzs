@@ -95,7 +95,8 @@ function detectProvider(filename, content) {
 // API: List downloaded exams (grouped by provider)
 app.get('/api/exams', (req, res) => {
     try {
-        const directory = req.query.library === 'shared' ? SHARED_EXAMS_DIR : EXAMS_DIR;
+        const shared = req.query.library === 'shared';
+        const directory = shared ? SHARED_EXAMS_DIR : EXAMS_DIR;
         const files = (fs.existsSync(directory) ? fs.readdirSync(directory) : [])
             .filter(f => f.endsWith('.md'))
             .map(f => {
@@ -116,6 +117,7 @@ app.get('/api/exams', (req, res) => {
                 const displayName = customNames[f] || examName;
                 return {
                     filename: f,
+                    ...(shared && { source: f.endsWith('_pdf.md') ? 'pdf' : 'community' }),
                     name: displayName,
                     originalName: examName,
                     isCustom: !!customNames[f],

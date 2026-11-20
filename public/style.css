@@ -1606,3 +1606,13 @@ a:hover {
 .shared-explanation {
     white-space: pre-wrap;
 }
+
+.shared-library-section {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.shared-library-section + .shared-library-section {
+    border-top: 1px solid var(--border);
+    padding-top: 1.25rem;
+}
