@@ -1581,3 +1581,28 @@ a:hover {
         display: none;
     }
 }
+
+.matching-choices {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.matching-choice {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.matching-choice select {
+    width: fit-content;
+    max-width: 100%;
+    padding: 0.4rem 0.65rem;
+    color: var(--text);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 0.4rem;
+    font: inherit;
+}
+
+.shared-explanation {
+    white-space: pre-wrap;
+}

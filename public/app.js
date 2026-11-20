@@ -77,7 +77,7 @@
                 card.addEventListener('click', (e) => {
                     if (e.target.classList.contains('exam-card-delete')) return;
                     if (e.target.classList.contains('exam-card-rename')) return;
-                    loadExam(card.dataset.filename);
+                    loadExam(card.dataset.filename, card.querySelector('.exam-card-title').firstChild.textContent);
                 });
             });
 
@@ -124,7 +124,7 @@
         });
     });
 
-    async function loadExam(filename) {
+    async function loadExam(filename, title) {
         try {
             const res = await fetch(`/api/exams/${encodeURIComponent(filename)}?library=${activeLibrary}`);
             const data = await res.json();
@@ -135,7 +135,7 @@
                 return;
             }
 
-            currentExamName = filename.replace('.md', '').replace(/_/g, ' ');
+            currentExamName = title;
             showModeSelect();
         } catch (err) {
             alert(`Erreur: ${err.message}`);
@@ -720,6 +720,7 @@
             dotsContainer.innerHTML = '';
         }
 
+        bindMatchingChoices(container);
         bindChoiceClicks(container, (letter) => {
             if (q.multiAnswer) {
                 let current = userAnswers[currentIndex] || [];
@@ -794,6 +795,7 @@
         document.getElementById('trainNext').disabled = true;
         document.getElementById('trainNext').textContent = 'Suivant →';
 
+        bindMatchingChoices(container);
         bindChoiceClicks(container, (letter) => {
             if (trainingRevealed) return;
             if (q.multiAnswer) {
@@ -848,13 +850,14 @@
         const q = currentQuestions[currentIndex];
         const userAnswer = userAnswers[currentIndex];
         const userLetters = Array.isArray(userAnswer) ? userAnswer : (userAnswer ? [userAnswer] : []);
-        const correctLetters = q.correctAnswer ? q.correctAnswer.split('') : [];
+        const correctLetters = answerLetters(q);
         const isCorrect = userLetters.length === correctLetters.length && userLetters.every(l => correctLetters.includes(l));
         if (isCorrect) trainCorrect++;
 
         document.getElementById('trainScore').textContent = `Score: ${trainCorrect}/${trainTotal} (${Math.round((trainCorrect/trainTotal)*100)}%)`;
 
         const container = document.getElementById('trainQuestion');
+        if (q.matchingOptions) container.innerHTML = buildQuestionHTML(q, userAnswer, true);
         container.querySelectorAll('.choice').forEach(el => {
             el.style.pointerEvents = 'none';
             if (correctLetters.includes(el.dataset.letter)) el.classList.add('correct');
@@ -866,7 +869,7 @@
         feedback.classList.add(isCorrect ? 'correct' : 'incorrect');
         
         let html = `<div class="feedback-title">${isCorrect ? '✓ Correct !' : '✗ Incorrect'}</div>`;
-        if (!isCorrect && q.correctAnswer) {
+        if (!isCorrect && q.correctAnswer && !q.matchingOptions) {
             html += `<div class="feedback-explanation">${q.answerConfidence === 1 ? 'Réponse retenue par la communauté' : 'Réponse indiquée'} : <strong>${q.correctAnswer}</strong>`;
             if (q.multiAnswer) {
                 const correctTexts = correctLetters.map(l => {
@@ -905,7 +908,9 @@
         const discussions = q.discussions || [];
         let html = '<div class="feedback-discussion">';
 
-        if (q.explanation) {
+        if (q.explanationSource === 'provided' && q.explanation) {
+            html += `<strong>Corrigé du document</strong><p class="shared-explanation">${linkify(q.explanation)}</p>`;
+        } else if (q.explanation) {
             html += `<strong>💬 Discussion la plus pertinente :</strong><p>${linkify(q.explanation)}</p>`;
         } else if (discussions.length === 0) {
             html += `<em>Aucune discussion disponible pour cette question.</em>`;
@@ -970,7 +975,7 @@
     function buildQuestionHTML(question, selectedAnswer, showCorrect) {
         const isMulti = question.multiAnswer;
         const selectedLetters = Array.isArray(selectedAnswer) ? selectedAnswer : (selectedAnswer ? [selectedAnswer] : []);
-        const correctLetters = question.correctAnswer ? question.correctAnswer.split('') : [];
+        const correctLetters = answerLetters(question);
         
         let html = `<div class="question-meta">
             <span class="question-id">Topic ${question.topic} — Question #${question.number}</span>
@@ -983,7 +988,7 @@
             html += `<span class="question-link"><a href="${question.link}" target="_blank">🔗 Voir la source</a></span>`;
         }
         html += `</span></div>`;
-        if (isMulti) {
+        if (isMulti && !question.matchingOptions) {
             html += `<div class="multi-answer-hint">⚠️ Sélectionnez ${question.expectedCount} réponses</div>`;
         }
         // Show confidence indicator if answer comes from community with low votes
@@ -993,6 +998,7 @@
             html += `<div class="answer-confidence-hint">❓ Aucune réponse disponible</div>`;
         }
         html += `<div class="question-text">${escapeHTML(question.text)}</div>`;
+        if (question.matchingOptions) return html + buildMatchingHTML(question, selectedLetters, showCorrect);
         html += `<div class="choices">`;
         
         for (const choice of question.choices) {
@@ -1008,6 +1014,35 @@
         }
         html += `</div>`;
         return html;
+    }
+
+    function buildMatchingHTML(question, selectedLetters, showCorrect) {
+        return '<div class="matching-choices">' + question.choices.map((choice, index) => {
+            const selected = selectedLetters.find(value => value.startsWith(`${index}:`))?.slice(-1);
+            const correct = question.correctAnswer[index];
+            const options = question.matchingOptions.map((label, optionIndex) => {
+                const letter = String.fromCharCode(65 + optionIndex);
+                return `<option value="${letter}"${letter === selected ? ' selected' : ''}>${escapeHTML(label)}</option>`;
+            }).join('');
+            const isCorrect = selected === correct;
+            const correctLabel = question.matchingOptions[correct?.charCodeAt(0) - 65] || '—';
+            return `<label class="matching-choice">
+                <span>${index + 1}. ${escapeHTML(choice.text)}</span>
+                <select data-matching-row="${index}"${showCorrect ? ' disabled' : ''}>
+                    <option value="">Choisir une réponse</option>${options}
+                </select>
+                ${showCorrect ? `<span class="result-choice-tag ${isCorrect ? 'correct-tag' : ''}">${isCorrect ? '✓' : '✗'} ${escapeHTML(correctLabel)}</span>` : ''}
+            </label>`;
+        }).join('') + '</div>';
+    }
+
+    function bindMatchingChoices(container) {
+        const selects = [...container.querySelectorAll('[data-matching-row]')];
+        selects.forEach(select => select.addEventListener('change', () => {
+            const answers = selects.filter(row => row.value).map(row => `${row.dataset.matchingRow}:${row.value}`);
+            userAnswers[currentIndex] = answers.length ? answers : undefined;
+            saveSession();
+        }));
     }
 
     function bindChoiceClicks(container, callback) {
@@ -1049,7 +1084,7 @@
             const trailing = url.match(/[).,;:!?]+$/);
             const clean = trailing ? url.slice(0, -trailing[0].length) : url;
             const suffix = trailing ? trailing[0] : '';
-            return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>${suffix}`;
+            return `<a href="${clean.replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer">${clean}</a>${suffix}`;
         });
     }
 
@@ -1073,11 +1108,11 @@
         const details = currentQuestions.map((q, i) => {
             const answer = userAnswers[i];
             const userLetters = Array.isArray(answer) ? answer : (answer ? [answer] : []);
-            const correctLetters = q.correctAnswer ? q.correctAnswer.split('') : [];
+            const correctLetters = answerLetters(q);
             return {
                 position: i + 1,
                 number: q.number,
-                text: q.text.substring(0, 200),
+                text: q.matchingOptions ? q.text : q.text.substring(0, 200),
                 choices: q.choices,
                 correctAnswer: q.correctAnswer,
                 answerConfidence: q.answerConfidence,
@@ -1085,6 +1120,8 @@
                 flagged: !!flaggedQuestions[i],
                 isCorrect: userLetters.length === correctLetters.length && userLetters.every(l => correctLetters.includes(l)),
                 link: q.link,
+                explanationSource: q.explanationSource,
+                matchingOptions: q.matchingOptions,
                 explanation: q.explanation ? q.explanation.substring(0, 300) : '',
                 // Conversation complète (limitée à 10 commentaires, 400 car. chacun,
                 // pour rester raisonnable en taille dans le localStorage).
@@ -1217,8 +1254,7 @@
             if (filter === 'incorrect' && d.isCorrect) continue;
             if (filter === 'flagged' && !d.flagged) continue;
 
-            const userDisplay = d.userAnswer.length > 0 ? d.userAnswer.join(', ') : '—';
-            const correctLetters = d.correctAnswer ? d.correctAnswer.split('') : [];
+            const correctLetters = answerLetters(d);
             const posLabel = d.position ? `Q${d.position} du quiz — ` : '';
 
             html += `<div class="result-question ${d.isCorrect ? 'is-correct' : 'is-incorrect'}">
@@ -1235,22 +1271,26 @@
                 html += `<div class="answer-confidence-hint">❓ Aucune réponse fiable disponible</div>`;
             }
 
-            html += `<div class="result-choices">`;
+            if (d.matchingOptions) {
+                html += buildMatchingHTML(d, d.userAnswer, true);
+            } else {
+                html += `<div class="result-choices">`;
 
-            for (const choice of d.choices) {
-                let cls = 'result-choice';
-                if (correctLetters.includes(choice.letter)) cls += ' correct';
-                if (d.userAnswer.includes(choice.letter) && !correctLetters.includes(choice.letter)) cls += ' incorrect';
-                const isUserPick = d.userAnswer.includes(choice.letter);
-                html += `<div class="${cls}">
-                    <span class="result-choice-letter">${choice.letter}</span>
-                    <span class="result-choice-text">${escapeHTML(choice.text)}</span>
-                    ${isUserPick ? '<span class="result-choice-tag your-pick">← Vous</span>' : ''}
-                    ${correctLetters.includes(choice.letter) && !isUserPick ? '<span class="result-choice-tag correct-tag">← Correct</span>' : ''}
-                </div>`;
+                for (const choice of d.choices) {
+                    let cls = 'result-choice';
+                    if (correctLetters.includes(choice.letter)) cls += ' correct';
+                    if (d.userAnswer.includes(choice.letter) && !correctLetters.includes(choice.letter)) cls += ' incorrect';
+                    const isUserPick = d.userAnswer.includes(choice.letter);
+                    html += `<div class="${cls}">
+                        <span class="result-choice-letter">${choice.letter}</span>
+                        <span class="result-choice-text">${escapeHTML(choice.text)}</span>
+                        ${isUserPick ? '<span class="result-choice-tag your-pick">← Vous</span>' : ''}
+                        ${correctLetters.includes(choice.letter) && !isUserPick ? '<span class="result-choice-tag correct-tag">← Correct</span>' : ''}
+                    </div>`;
+                }
+                html += `</div>`;
             }
-            html += `</div>`;
-            html += buildDiscussionHTML({ explanation: d.explanation, discussions: d.discussions, link: d.link, id: `hist${d.number}${d.position}` });
+            html += buildDiscussionHTML({ explanation: d.explanation, explanationSource: d.explanationSource, discussions: d.discussions, link: d.link, id: `hist${d.number}${d.position}` });
             html += `</div>`;
         }
         const historyListEl = document.getElementById('historyResultsList');
@@ -1267,7 +1307,7 @@
         currentQuestions.forEach((q, i) => {
             const answer = userAnswers[i];
             const userLetters = Array.isArray(answer) ? answer : (answer ? [answer] : []);
-            const correctLetters = q.correctAnswer ? q.correctAnswer.split('') : [];
+            const correctLetters = answerLetters(q);
             if (userLetters.length === 0) unanswered++;
             else if (userLetters.length === correctLetters.length && userLetters.every(l => correctLetters.includes(l))) correct++;
             else incorrect++;
@@ -1320,7 +1360,7 @@
         currentQuestions.forEach((q, i) => {
             const answer = userAnswers[i];
             const userLetters = Array.isArray(answer) ? answer : (answer ? [answer] : []);
-            const correctLetters = q.correctAnswer ? q.correctAnswer.split('') : [];
+            const correctLetters = answerLetters(q);
             const isCorrect = userLetters.length === correctLetters.length && userLetters.every(l => correctLetters.includes(l));
             const isFlagged = !!flaggedQuestions[i];
             if (filter === 'correct' && !isCorrect) return;
@@ -1342,23 +1382,27 @@
                 html += `<div class="answer-confidence-hint">❓ Aucune réponse fiable disponible</div>`;
             }
 
-            html += `<div class="result-choices">`;
+            if (q.matchingOptions) {
+                html += buildMatchingHTML(q, userLetters, true);
+            } else {
+                html += `<div class="result-choices">`;
             
-            // Show all choices with correct/incorrect highlighting
-            for (const choice of q.choices) {
-                let cls = 'result-choice';
-                if (correctLetters.includes(choice.letter)) cls += ' correct';
-                if (userLetters.includes(choice.letter) && !correctLetters.includes(choice.letter)) cls += ' incorrect';
-                if (userLetters.includes(choice.letter) && correctLetters.includes(choice.letter)) cls += ' correct';
-                const isUserPick = userLetters.includes(choice.letter);
-                html += `<div class="${cls}">
-                    <span class="result-choice-letter">${choice.letter}</span>
-                    <span class="result-choice-text">${escapeHTML(choice.text)}</span>
-                    ${isUserPick ? '<span class="result-choice-tag your-pick">← Votre réponse</span>' : ''}
-                    ${correctLetters.includes(choice.letter) && !isUserPick ? '<span class="result-choice-tag correct-tag">← Bonne réponse</span>' : ''}
-                </div>`;
+                // Show all choices with correct/incorrect highlighting
+                for (const choice of q.choices) {
+                    let cls = 'result-choice';
+                    if (correctLetters.includes(choice.letter)) cls += ' correct';
+                    if (userLetters.includes(choice.letter) && !correctLetters.includes(choice.letter)) cls += ' incorrect';
+                    if (userLetters.includes(choice.letter) && correctLetters.includes(choice.letter)) cls += ' correct';
+                    const isUserPick = userLetters.includes(choice.letter);
+                    html += `<div class="${cls}">
+                        <span class="result-choice-letter">${choice.letter}</span>
+                        <span class="result-choice-text">${escapeHTML(choice.text)}</span>
+                        ${isUserPick ? '<span class="result-choice-tag your-pick">← Votre réponse</span>' : ''}
+                        ${correctLetters.includes(choice.letter) && !isUserPick ? '<span class="result-choice-tag correct-tag">← Bonne réponse</span>' : ''}
+                    </div>`;
+                }
+                html += `</div>`;
             }
-            html += `</div>`;
 
             html += buildDiscussionHTML(q);
             html += `</div>`;
