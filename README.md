@@ -100,3 +100,17 @@ et une réponse combinée (`**Answer: AC**`).
 
 Le téléchargement requiert Docker. Quizzs construit le downloader Go `thatonecodes` à partir d’une révision fixe au premier lancement. Un seul téléchargement tourne à la fois. Les pages déjà lues sont conservées dans `exams/.forum-state/` et l’index d’un fournisseur peut servir à plusieurs examens. Après un arrêt, relancez le même téléchargement pour reprendre. Le fichier Markdown est publié quand le nombre de questions distinctes et lisibles correspond au total annoncé.
 
+
+### Exporter les énoncés et les choix
+
+Le second exécutable réutilise le cache et le parseur de `thatonecodes`. Il lit les discussions publiques dont les liens sont dans l’index, sans ouvrir le catalogue de l’examen. Il conserve les énoncés et les choix, y compris ceux sans corrigé. Le suffixe `.partial.md` indique que le total demandé n’a pas été atteint.
+
+```bash
+mkdir -p exams/.forum-state
+docker build -t quizzs-forum-downloader:local downloader
+docker run --rm --entrypoint questions-downloader \
+  -v "$PWD/exams/.forum-state:/state" quizzs-forum-downloader:local \
+  -p amazon -s aws-certified-security-specialty-scs-c03 -total 143
+```
+
+Ajoutez `-cached-only` pour exporter le cache sans requête réseau.

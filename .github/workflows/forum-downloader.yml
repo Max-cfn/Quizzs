@@ -29,10 +29,13 @@ jobs:
           git -C upstream apply ../downloader/downloader.patch
           cp downloader/forum.go upstream/internal/fetch/quizzs_forum.go
           cp downloader/forum_test.go upstream/internal/fetch/quizzs_forum_test.go
-          mkdir -p upstream/cmd/quizzs
+          cp downloader/questions.go upstream/internal/fetch/quizzs_questions.go
+          cp downloader/questions_test.go upstream/internal/fetch/quizzs_questions_test.go
+          mkdir -p upstream/cmd/quizzs upstream/cmd/quizzs-questions
           cp downloader/main.go upstream/cmd/quizzs/main.go
+          cp downloader/questions-main.go upstream/cmd/quizzs-questions/main.go
           cd upstream
-          go test -v ./internal/fetch ./cmd/quizzs
+          go test -v ./internal/fetch ./cmd/quizzs ./cmd/quizzs-questions
       - name: Build the image used by Quizzs
         run: docker build -t quizzs-forum-downloader:local downloader
       - uses: actions/setup-node@v4

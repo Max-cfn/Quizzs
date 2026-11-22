@@ -91,6 +91,9 @@ func (h *forumHTTP) page(pageURL string) (*goquery.Document, error) {
 			}
 		}
 		if res.StatusCode != http.StatusTooManyRequests && res.StatusCode != http.StatusServiceUnavailable {
+			if res.Header.Get("Cf-Mitigated") == "challenge" {
+				return nil, fmt.Errorf("HTTP %d (Cloudflare challenge) at %s", res.StatusCode, pageURL)
+			}
 			return nil, fmt.Errorf("HTTP %d at %s", res.StatusCode, pageURL)
 		}
 		deadline := retryAt(res.Header.Get("Retry-After"), time.Now(), h.retryDelay)
@@ -369,15 +372,24 @@ func DownloadForum(provider, slug, stateDir, output string) (int, error) {
 	if err := os.MkdirAll(stateDir, 0700); err != nil {
 		return 0, err
 	}
+	h, err := newForumHTTP(stateDir)
+	if err != nil {
+		return 0, err
+	}
+	return h.download(provider, slug, stateDir, output)
+}
+
+func newForumHTTP(stateDir string) (*forumHTTP, error) {
 	httpClient := utils.NewHTTPClient()
+	httpClient.Transport.(*http.Transport).Proxy = http.ProxyFromEnvironment
 	httpClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	h := forumHTTP{client: httpClient, interval: 6*time.Second, retryDelay: 30*time.Second, cooldownPath: filepath.Join(stateDir, "cooldown.json")}
 	if err := loadForumJSON(h.cooldownPath, &h.next); err != nil {
-		return 0, err
+		return nil, err
 	}
-	return h.download(provider, slug, stateDir, output)
+	return &h, nil
 }
 
 func (h *forumHTTP) download(provider, slug, stateDir, output string) (int, error) {
